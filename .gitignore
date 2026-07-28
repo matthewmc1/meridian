@@ -1,0 +1,14 @@
+# Local data lake — rebuilt from db/schema.sql + db/seed.sql via `make db`
+meridian.duckdb
+meridian.duckdb.wal
+
+# Build outputs
+backend/backend
+frontend/dist/
+frontend/node_modules/
+
+# Session artifacts
+.playwright-mcp/
+*.png
+nohup.out
+.DS_Store

@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#EAE7E0;--shell:#FBFAF7;--surface:#FFFFFF;--surface2:#F5F3EE;--surface3:#EFECE5;
+--line:rgba(20,23,26,.11);--line2:rgba(20,23,26,.06);
+--ink:#14171A;--ink2:#3D4348;--muted:#6E747A;--faint:#969CA2;
+--accent:#0B5D5A;--accentFg:#FFFFFF;--accentSoft:rgba(11,93,90,.09);--accentLine:rgba(11,93,90,.28);
+--good:#1C6B4C;--warn:#8F5D00;--crit:#B23214;
+--goodBg:rgba(28,107,76,.10);--warnBg:rgba(143,93,0,.11);--critBg:rgba(178,50,20,.09);
+--track:rgba(20,23,26,.10);--hover:rgba(11,93,90,.05);--shadow:0 30px 70px -34px rgba(20,23,26,.45);
+}
+html[data-theme="dark"]{
+--bg:#08090A;--shell:#0A0B0C;--surface:#111315;--surface2:#141718;--surface3:#191D1E;
+--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.05);
+--ink:#F2F0EA;--ink2:#D3D0C8;--muted:#8D9399;--faint:#6C7276;
+--accent:#E8FF66;--accentFg:#0A0B0C;--accentSoft:rgba(232,255,102,.09);--accentLine:rgba(232,255,102,.32);
+--good:#5DD39E;--warn:#EFBF5A;--crit:#FF6B5B;
+--goodBg:rgba(93,211,158,.12);--warnBg:rgba(239,191,90,.12);--critBg:rgba(255,107,91,.12);
+--track:rgba(255,255,255,.10);--hover:rgba(232,255,102,.05);--shadow:0 30px 70px -30px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--ink)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--track);border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.28}}
+</style>
+</helmet>
+
+<div style="padding:44px 48px 64px;max-width:1580px;margin:0 auto">
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="border-left:2px solid var(--accent);padding:0 0 0 22px;margin:0 0 40px;max-width:1200px">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:14px">Design note · v1 · for review</div>
+<h1 style="font:600 34px/1.1 'Instrument Sans',sans-serif;color:var(--ink);margin:0 0 10px;letter-spacing:-.022em">Customer 360 — Delivery Assurance Console</h1>
+<p style="font:400 15px/1.55 'Instrument Sans',sans-serif;color:var(--muted);margin:0 0 26px;max-width:790px;text-wrap:pretty">One console for a customer success team running a portfolio of contracted engagements. Built around a single question asked in two directions: <em style="color:var(--ink2)">is this client on track</em>, and <em style="color:var(--ink2)">which of my other clients has the same problem</em>. Light theme is the default; the ◐ button in the top bar flips to dark.</p>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:26px;max-width:1140px">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:11px">What I assumed</div>
+<ul style="margin:0;padding:0 0 0 15px;font:400 12.5px/1.65 'Instrument Sans',sans-serif;color:var(--muted)">
+<li>Professional services delivery — fixed-price call-offs, T&amp;M, and managed run under framework agreements.</li>
+<li>"Smart contract" = machine-checkable clauses (milestone gates, SLA credits, change control) evaluated automatically against delivery evidence.</li>
+<li>Primary user is a CSM covering 8–15 accounts; secondary is the delivery partner prepping a QBR.</li>
+<li>Read-only against source systems; risks and journal entries are authored here.</li>
+</ul>
+</div>
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:11px">Where the data comes from</div>
+<ul style="margin:0;padding:0 0 0 15px;font:400 12.5px/1.65 'Instrument Sans',sans-serif;color:var(--muted)">
+<li><strong style="color:var(--ink2);font-weight:600">Salesforce</strong> — account, contract instruments, ACV/TCV, change orders, renewal, CSAT.</li>
+<li><strong style="color:var(--ink2);font-weight:600">Workday</strong> — assignments, utilisation, open roles, attrition, burn, margin.</li>
+<li><strong style="color:var(--ink2);font-weight:600">Jira</strong> — epics, velocity, blocked age, release evidence for gate verification.</li>
+<li>Every figure carries a source badge, so any QBR claim traces back in one click.</li>
+</ul>
+</div>
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:11px">The design bet</div>
+<ul style="margin:0;padding:0 0 0 15px;font:400 12.5px/1.65 'Instrument Sans',sans-serif;color:var(--muted)">
+<li>Lead with <strong style="color:var(--ink2);font-weight:600">outcomes and clauses</strong>, not activity. A green burndown beside a breached gate is the failure this fixes.</li>
+<li>The customer overview is a triage surface: rank by exposure, act without opening the account.</li>
+<li>Correlation is a first-class view — shared services mean shared blast radius.</li>
+<li>Dense instrument panel on paper: a screen someone keeps open all day.</li>
+</ul>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="width:1440px;height:944px;background:var(--surface2);border:1px solid var(--line);border-radius:9px;overflow:hidden;display:flex;box-shadow:var(--shadow)">
+
+<div style="width:208px;flex:none;background:var(--shell);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 0">
+<div style="padding:0 16px 20px;display:flex;align-items:center;gap:9px">
+<div style="width:22px;height:22px;border-radius:3px;background:var(--accent);display:grid;place-items:center;font:600 11px/1 'IBM Plex Mono',monospace;color:var(--accentFg)">M</div>
+<div>
+<div style="font:600 12.5px/1 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.01em">Meridian</div>
+<div style="font:400 9px/1.3 'IBM Plex Mono',monospace;color:var(--faint);letter-spacing:.1em;text-transform:uppercase">Client Assurance</div>
+</div>
+</div>
+<div style="padding:0 10px;display:flex;flex-direction:column;gap:2px">
+<sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+<div onClick="{{ n.go }}" style="{{ n.style }}">
+<span style="{{ n.bar }}"></span><span style="flex:1">{{ n.label }}</span><span style="{{ n.countStyle }}">{{ n.count }}</span>
+</div>
+</sc-for>
+</div>
+<div style="margin-top:auto;padding:16px 16px 0;border-top:1px solid var(--line2)">
+<div style="font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Sources</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ sources }}" as="s" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:7px;font:400 11px/1 'IBM Plex Mono',monospace;color:var(--ink2)">
+<span style="{{ s.dot }}"></span><span>{{ s.name }}</span><span style="margin-left:auto;color:var(--faint);font-size:10px">{{ s.age }}</span>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:9px;margin:16px 0 4px;padding-top:14px;border-top:1px solid var(--line2)">
+<div style="width:25px;height:25px;border-radius:50%;background:var(--surface3);display:grid;place-items:center;font:600 10px/1 'IBM Plex Mono',monospace;color:var(--ink2)">PR</div>
+<div>
+<div style="font:600 11.5px/1.2 'Instrument Sans',sans-serif;color:var(--ink2)">Priya Raman</div>
+<div style="font:400 9.5px/1.2 'IBM Plex Mono',monospace;color:var(--faint)">CSM · 8 accounts</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+<div style="height:53px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--shell)">
+<div style="display:flex;align-items:center;gap:8px;width:300px;flex:none;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:5px;background:var(--surface)">
+<span style="font:400 12px/1 'IBM Plex Mono',monospace;color:var(--faint)">⌕</span>
+<span style="font:400 12px/1 'Instrument Sans',sans-serif;color:var(--faint)">Clients, risks, clauses, epics…</span>
+<span style="margin-left:auto;font:500 9.5px/1 'IBM Plex Mono',monospace;color:var(--faint);border:1px solid var(--line);border-radius:3px;padding:3px 4px">⌘K</span>
+</div>
+<div style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;height:30px;padding:0 12px;border-radius:5px;background:var(--critBg);border:1px solid var(--crit)">
+<span style="width:6px;height:6px;border-radius:50%;background:var(--crit);flex:none;animation:blip 1.8s ease-in-out infinite"></span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--crit);flex:none">Customer signal</span>
+<span style="font:400 12px/1 'Instrument Sans',sans-serif;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">CVE-2026-1180 · Ingest Gateway v4 — 3 clients, £13.0m ACV exposed, 2 milestone gates at risk</span>
+<span onClick="{{ goCorrelate }}" style="margin-left:auto;flex:none;font:600 10.5px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;color:var(--accent);cursor:pointer;border-bottom:1px solid var(--accentLine)">TRIAGE →</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:5px;border:1px solid var(--line);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--muted)">Q3 FY26</div>
+<div onClick="{{ toggleTheme }}" title="Toggle light / dark" style="flex:none;width:30px;height:30px;display:grid;place-items:center;border-radius:5px;border:1px solid var(--line);font:400 13px/1 'IBM Plex Mono',monospace;color:var(--muted);cursor:pointer" style-hover="border-color:var(--accentLine);color:var(--accent)">◐</div>
+</div>
+
+<div style="flex:1;min-height:0;overflow-y:auto;background:var(--surface2)">
+
+<sc-if value="{{ isFleet }}" hint-placeholder-val="{{ true }}">
+<div style="padding:22px 22px 32px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Portfolio · 8 active engagements · £30.3m ACV</div>
+<div style="font:600 25px/1.05 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.022em">Customer signal</div>
+</div>
+<div style="display:flex;gap:8px">
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);background:var(--surface);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--muted)">Sort · Exposure ↓</div>
+<div onClick="{{ toggleLens }}" style="{{ lensStyle }}">Risk lens</div>
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;background:var(--accent);font:600 11px/1 'IBM Plex Mono',monospace;color:var(--accentFg);letter-spacing:.04em;cursor:pointer">+ RAISE RISK</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:18px">
+<sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 13px 13px">
+<div style="font:600 9.5px/1.35 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px;height:25px">{{ k.label }}</div>
+<div style="display:flex;align-items:baseline;gap:5px">
+<div style="{{ k.valStyle }}">{{ k.value }}</div>
+<div style="font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ k.unit }}</div>
+</div>
+<div style="font:400 10.5px/1.4 'Instrument Sans',sans-serif;color:var(--muted);margin-top:7px">{{ k.sub }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px;overflow:hidden">
+<div style="display:grid;grid-template-columns:232px 92px 122px 116px 96px 108px 162px 78px 122px;align-items:center;padding:0 14px;height:36px;background:var(--surface3);border-bottom:1px solid var(--line);font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">
+<div>Client</div><div>Health</div><div>Outcomes</div><div>Clauses</div><div>Capacity</div><div>Velocity</div><div>Vehicle · renewal</div><div>Risks</div><div style="text-align:right">ACV</div>
+</div>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+<div onClick="{{ r.open }}" style="display:grid;grid-template-columns:232px 92px 122px 116px 96px 108px 162px 78px 122px;align-items:center;padding:0 14px;height:63px;border-bottom:1px solid var(--line2);cursor:pointer" style-hover="background:var(--hover)">
+<div style="display:flex;align-items:center;gap:11px;min-width:0">
+<div style="{{ r.markStyle }}">{{ r.mark }}</div>
+<div style="min-width:0">
+<div style="font:600 13.5px/1.3 'Instrument Sans',sans-serif;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
+<div style="font:400 10px/1.3 'IBM Plex Mono',monospace;color:var(--faint);letter-spacing:.03em">{{ r.sector }}</div>
+</div>
+</div>
+<div><span style="{{ r.bandStyle }}">{{ r.band }}</span></div>
+<div>
+<div style="font:500 12.5px/1 'IBM Plex Mono',monospace;color:var(--ink2);margin-bottom:6px">{{ r.outcomes }}</div>
+<div style="height:3px;width:70px;background:var(--track);border-radius:2px;overflow:hidden"><div style="{{ r.outBar }}"></div></div>
+</div>
+<div style="display:flex;align-items:center;gap:4px">
+<sc-for list="{{ r.clauseDots }}" as="c" hint-placeholder-count="5">
+<span style="{{ c.style }}"></span>
+</sc-for>
+<span style="{{ r.clauseTextStyle }}">{{ r.clauseText }}</span>
+</div>
+<div>
+<div style="{{ r.utilStyle }}">{{ r.util }}</div>
+<div style="font:400 9.5px/1.3 'IBM Plex Mono',monospace;color:var(--faint)">{{ r.utilNote }}</div>
+</div>
+<div style="display:flex;align-items:center;gap:7px">
+<span style="{{ r.velStyle }}">{{ r.vel }}</span>
+<div style="display:flex;align-items:flex-end;gap:2px;height:19px">
+<sc-for list="{{ r.spark }}" as="s" hint-placeholder-count="7">
+<span style="{{ s.style }}"></span>
+</sc-for>
+</div>
+</div>
+<div style="min-width:0">
+<div style="font:400 11.5px/1.35 'Instrument Sans',sans-serif;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:152px">{{ r.vehicle }}</div>
+<div style="{{ r.renewStyle }}">{{ r.renew }}</div>
+</div>
+<div style="display:flex;align-items:baseline;gap:4px">
+<span style="font:500 14px/1 'IBM Plex Mono',monospace;color:var(--ink2)">{{ r.risks }}</span>
+<span style="{{ r.critStyle }}">{{ r.crit }}</span>
+</div>
+<div style="text-align:right">
+<div style="font:500 13.5px/1 'IBM Plex Mono',monospace;color:var(--ink)">{{ r.acv }}</div>
+<div style="{{ r.deltaStyle }}">{{ r.delta }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 372px;gap:10px;margin-top:10px">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Needs a decision today</div>
+<div style="font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)">ranked by exposure</div>
+</div>
+<sc-for list="{{ decisions }}" as="d" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line2)">
+<span style="{{ d.sevStyle }}">{{ d.sev }}</span>
+<div style="min-width:0;flex:1">
+<div style="font:500 12.5px/1.35 'Instrument Sans',sans-serif;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.title }}</div>
+<div style="font:400 10.5px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.meta }}</div>
+</div>
+<div style="font:500 11.5px/1 'IBM Plex Mono',monospace;color:var(--ink2);flex:none">{{ d.exposure }}</div>
+<div onClick="{{ d.act }}" style="flex:none;height:26px;display:flex;align-items:center;padding:0 10px;border-radius:4px;border:1px solid var(--accentLine);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;color:var(--accent);cursor:pointer" style-hover="background:var(--accentSoft)">{{ d.action }}</div>
+</div>
+</sc-for>
+</div>
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="padding:12px 14px;border-bottom:1px solid var(--line2);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Renewal runway · next 180 days</div>
+<div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{ renewals }}" as="v" hint-placeholder-count="5">
+<div>
+<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px">
+<span style="font:500 12px/1 'Instrument Sans',sans-serif;color:var(--ink)">{{ v.name }}</span>
+<span style="{{ v.daysStyle }}">{{ v.days }}</span>
+<span style="margin-left:auto;font:500 11.5px/1 'IBM Plex Mono',monospace;color:var(--ink2)">{{ v.value }}</span>
+</div>
+<div style="height:4px;background:var(--track);border-radius:2px;overflow:hidden"><div style="{{ v.bar }}"></div></div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:4px">{{ v.note }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isClient }}" hint-placeholder-val="{{ false }}">
+<div style="padding:0 0 32px">
+
+<div style="padding:20px 22px 16px;border-bottom:1px solid var(--line);background:var(--surface)">
+<div style="display:flex;align-items:center;gap:9px;font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint);margin-bottom:12px">
+<span onClick="{{ goFleet }}" style="cursor:pointer;color:var(--accent)">Customers</span><span>/</span><span>Northwind Rail</span><span>/</span><span>360</span>
+</div>
+<div style="display:flex;align-items:flex-start;gap:18px">
+<div style="width:44px;height:44px;flex:none;border-radius:5px;background:var(--warnBg);border:1px solid var(--warn);display:grid;place-items:center;font:600 15px/1 'IBM Plex Mono',monospace;color:var(--warn)">NR</div>
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:center;gap:11px;margin-bottom:6px">
+<h2 style="margin:0;font:600 24px/1.05 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.022em">Northwind Rail</h2>
+<span style="height:21px;display:inline-flex;align-items:center;padding:0 8px;border-radius:3px;background:var(--warnBg);color:var(--warn);font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase">Watch</span>
+<span style="height:21px;display:inline-flex;align-items:center;padding:0 8px;border-radius:3px;border:1px solid var(--line);color:var(--muted);font:500 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.06em">1 clause breach</span>
+</div>
+<div style="display:flex;gap:22px;font:400 11.5px/1.4 'IBM Plex Mono',monospace;color:var(--muted);flex-wrap:wrap">
+<span>Transport &amp; infrastructure</span><span>MSA-2023-041 + SOW-14 · fixed price</span><span>CSM Priya Raman</span><span>Delivery lead D. Okafor</span><span>Renews 12 Nov 2026</span>
+</div>
+</div>
+<div style="display:flex;gap:8px;flex:none">
+<div onClick="{{ goJournal }}" style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2);cursor:pointer" style-hover="border-color:var(--accentLine);color:var(--accent)">Risk journal</div>
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2);cursor:pointer" style-hover="border-color:var(--accentLine);color:var(--accent)">Site report</div>
+<div onClick="{{ goQbr }}" style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;background:var(--accent);font:600 11px/1 'IBM Plex Mono',monospace;color:var(--accentFg);letter-spacing:.04em;cursor:pointer">BUILD QBR</div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:16px">
+<sc-for list="{{ clientTiles }}" as="t" hint-placeholder-count="5">
+<div style="border:1px solid var(--line);border-radius:6px;padding:11px 12px;background:var(--surface2)">
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+<span style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)">{{ t.label }}</span>
+<span style="{{ t.srcStyle }}">{{ t.src }}</span>
+</div>
+<div style="display:flex;align-items:baseline;gap:5px">
+<span style="{{ t.valStyle }}">{{ t.value }}</span>
+<span style="font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ t.unit }}</span>
+</div>
+<div style="font:400 10.5px/1.4 'Instrument Sans',sans-serif;color:var(--muted);margin-top:6px">{{ t.sub }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="padding:16px 22px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Contracted outcomes</div>
+<div style="font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)">4 of 6 on track</div>
+</div>
+<sc-for list="{{ outcomes }}" as="o" hint-placeholder-count="6">
+<div style="padding:11px 14px;border-bottom:1px solid var(--line2)">
+<div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
+<span style="{{ o.pipStyle }}"></span>
+<span style="font:500 12.5px/1.3 'Instrument Sans',sans-serif;color:var(--ink);flex:1">{{ o.name }}</span>
+<span style="font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2)">{{ o.actual }}</span>
+<span style="font:400 11px/1 'IBM Plex Mono',monospace;color:var(--faint)">/ {{ o.target }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:9px">
+<div style="flex:1;height:5px;background:var(--track);border-radius:3px;overflow:hidden;position:relative">
+<div style="{{ o.bar }}"></div>
+<div style="{{ o.marker }}"></div>
+</div>
+<span style="{{ o.tagStyle }}">{{ o.tag }}</span>
+<span style="{{ o.srcStyle }}">{{ o.src }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Smart contract monitor</div>
+<div style="display:flex;align-items:center;gap:6px;font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)"><span style="width:5px;height:5px;border-radius:50%;background:var(--good)"></span>evaluated 14 min ago</div>
+</div>
+<sc-for list="{{ clauses }}" as="c" hint-placeholder-count="6">
+<div style="padding:10px 14px;border-bottom:1px solid var(--line2);display:flex;align-items:flex-start;gap:11px">
+<span style="{{ c.stateStyle }}">{{ c.state }}</span>
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px">
+<span style="font:500 11px/1 'IBM Plex Mono',monospace;color:var(--muted);flex:none">{{ c.ref }}</span>
+<span style="font:500 12.5px/1.3 'Instrument Sans',sans-serif;color:var(--ink)">{{ c.name }}</span>
+</div>
+<div style="font:400 11px/1.45 'Instrument Sans',sans-serif;color:var(--muted);margin-top:3px">{{ c.test }}</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:6px">
+<span style="{{ c.evStyle }}">{{ c.evidence }}</span>
+<span style="font:400 10px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ c.checked }}</span>
+</div>
+</div>
+<div style="{{ c.moneyStyle }}">{{ c.money }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Capacity &amp; team</div>
+<span style="height:18px;display:inline-flex;align-items:center;padding:0 6px;border-radius:3px;background:var(--surface3);font:500 9px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--muted)">WORKDAY</span>
+</div>
+<div style="padding:12px 14px 6px;display:flex;gap:18px">
+<div>
+<div style="font:600 22px/1 'IBM Plex Mono',monospace;color:var(--warn)">103%</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:4px">utilisation · 5 wks &gt;100%</div>
+</div>
+<div>
+<div style="font:600 22px/1 'IBM Plex Mono',monospace;color:var(--ink)">18.5</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:4px">FTE assigned / 21 planned</div>
+</div>
+<div>
+<div style="font:600 22px/1 'IBM Plex Mono',monospace;color:var(--crit)">11%</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:4px">margin · plan 18%</div>
+</div>
+</div>
+<div style="padding:6px 14px 12px;display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ team }}" as="p" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font:400 11.5px/1 'Instrument Sans',sans-serif;color:var(--ink2);width:132px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.role }}</span>
+<div style="flex:1;height:16px;background:var(--track);border-radius:2px;overflow:hidden;position:relative">
+<div style="{{ p.bar }}"></div>
+</div>
+<span style="{{ p.pctStyle }}">{{ p.pct }}</span>
+<span style="{{ p.flagStyle }}">{{ p.flag }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Delivery evidence</div>
+<span style="height:18px;display:inline-flex;align-items:center;padding:0 6px;border-radius:3px;background:var(--surface3);font:500 9px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--muted)">JIRA</span>
+</div>
+<div style="padding:12px 14px 8px;display:flex;align-items:flex-end;gap:3px;height:74px">
+<sc-for list="{{ velocity }}" as="v" hint-placeholder-count="10">
+<div style="{{ v.style }}" title="{{ v.title }}"></div>
+</sc-for>
+</div>
+<div style="padding:0 14px 10px;font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);display:flex;justify-content:space-between"><span>Sprint 31 → 40</span><span>velocity −12% vs 6-sprint mean</span></div>
+<sc-for list="{{ epics }}" as="e" hint-placeholder-count="4">
+<div style="padding:9px 14px;border-top:1px solid var(--line2);display:flex;align-items:center;gap:10px">
+<span style="font:500 10.5px/1 'IBM Plex Mono',monospace;color:var(--muted);width:66px;flex:none">{{ e.key }}</span>
+<span style="font:400 12px/1.3 'Instrument Sans',sans-serif;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.name }}</span>
+<span style="{{ e.blockStyle }}">{{ e.blocked }}</span>
+<span style="{{ e.stateStyle }}">{{ e.state }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="grid-column:1 / -1;background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Traceability — outcome to evidence</div>
+<div style="font:400 10.5px/1 'IBM Plex Mono',monospace;color:var(--faint)">every QBR claim resolves to a source record</div>
+</div>
+<div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ chains }}" as="ch" hint-placeholder-count="3">
+<div style="display:flex;align-items:stretch;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface2)">
+<sc-for list="{{ ch.steps }}" as="st" hint-placeholder-count="5">
+<div style="{{ st.wrap }}">
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+<span style="font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)">{{ st.kind }}</span>
+<span style="{{ st.srcStyle }}">{{ st.src }}</span>
+</div>
+<div style="font:500 12px/1.35 'Instrument Sans',sans-serif;color:var(--ink)">{{ st.label }}</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--muted);margin-top:3px">{{ st.meta }}</div>
+</div>
+</sc-for>
+<div style="{{ ch.verdictWrap }}">
+<div style="font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;opacity:.75">Verdict</div>
+<div style="font:600 12.5px/1.3 'Instrument Sans',sans-serif">{{ ch.verdict }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCorrelate }}" hint-placeholder-val="{{ false }}">
+<div style="padding:22px 22px 32px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--crit);margin-bottom:8px">Active cluster · opened 3 h ago</div>
+<div style="font:600 25px/1.05 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.022em">CVE-2026-1180 · Ingest Gateway v4</div>
+<div style="font:400 12.5px/1.5 'Instrument Sans',sans-serif;color:var(--muted);margin-top:7px;max-width:760px;text-wrap:pretty">Deserialisation flaw in the shared ingest component. Correlated across customers by service inventory, then re-scored against each client's contractual obligations — not just their technical exposure.</div>
+</div>
+<div style="display:flex;gap:8px">
+<div onClick="{{ goFleet }}" style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);background:var(--surface);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2);cursor:pointer">← Customers</div>
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;background:var(--accent);font:600 11px/1 'IBM Plex Mono',monospace;color:var(--accentFg);letter-spacing:.04em;cursor:pointer">RAISE CROSS-CUSTOMER RISK · 3 CLIENTS</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px">
+<sc-for list="{{ corrKpis }}" as="k" hint-placeholder-count="4">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 13px">
+<div style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px">{{ k.label }}</div>
+<div style="{{ k.valStyle }}">{{ k.value }}</div>
+<div style="font:400 10.5px/1.4 'Instrument Sans',sans-serif;color:var(--muted);margin-top:6px">{{ k.sub }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px;margin-bottom:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--line2);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Blast radius · contractual, not just technical</div>
+<div style="display:grid;grid-template-columns:196px 104px 128px 1fr 150px 118px;align-items:center;padding:0 14px;height:33px;background:var(--surface3);border-bottom:1px solid var(--line2);font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">
+<div>Client</div><div>Version</div><div>Exposure</div><div>Clause at stake</div><div>Patch window</div><div style="text-align:right">Liability</div>
+</div>
+<sc-for list="{{ affected }}" as="a" hint-placeholder-count="4">
+<div style="display:grid;grid-template-columns:196px 104px 128px 1fr 150px 118px;align-items:center;padding:0 14px;height:58px;border-bottom:1px solid var(--line2)">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="{{ a.markStyle }}">{{ a.mark }}</span>
+<div>
+<div style="font:600 12.5px/1.25 'Instrument Sans',sans-serif;color:var(--ink)">{{ a.name }}</div>
+<div style="font:400 9.5px/1.3 'IBM Plex Mono',monospace;color:var(--faint)">{{ a.env }}</div>
+</div>
+</div>
+<div style="font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2)">{{ a.version }}</div>
+<div><span style="{{ a.expStyle }}">{{ a.exp }}</span></div>
+<div style="min-width:0;padding-right:14px">
+<div style="font:400 11.5px/1.35 'Instrument Sans',sans-serif;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.clause }}</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:2px">{{ a.clauseRef }}</div>
+</div>
+<div style="font:400 11px/1.35 'IBM Plex Mono',monospace;color:var(--ink2)">{{ a.window }}</div>
+<div style="text-align:right">
+<div style="font:500 13px/1 'IBM Plex Mono',monospace;color:var(--ink)">{{ a.liability }}</div>
+<div style="font:400 9.5px/1.3 'IBM Plex Mono',monospace;color:var(--faint);margin-top:3px">{{ a.liabilityNote }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 430px;gap:10px">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--line2);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Shared service inventory — where else this pattern repeats</div>
+<div style="padding:12px 14px">
+<div style="display:grid;grid-template-columns:172px repeat(8,1fr);gap:3px;margin-bottom:4px">
+<div></div>
+<sc-for list="{{ matrixCols }}" as="c" hint-placeholder-count="8">
+<div style="font:500 9px/1.15 'IBM Plex Mono',monospace;color:var(--faint);text-align:center;height:34px;display:flex;align-items:flex-end;justify-content:center;text-wrap:balance">{{ c }}</div>
+</sc-for>
+</div>
+<sc-for list="{{ matrix }}" as="m" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:172px repeat(8,1fr);gap:3px;margin-bottom:3px;align-items:center">
+<div style="font:400 11px/1.2 'Instrument Sans',sans-serif;color:var(--ink2);padding-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.service }}</div>
+<sc-for list="{{ m.cells }}" as="cell" hint-placeholder-count="8">
+<div style="{{ cell.style }}" title="{{ cell.title }}">{{ cell.mark }}</div>
+</sc-for>
+</div>
+</sc-for>
+<div style="display:flex;gap:14px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line2);font:400 10px/1 'IBM Plex Mono',monospace;color:var(--faint)">
+<span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:var(--crit)"></span>vulnerable</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn)"></span>version drift</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:var(--good)"></span>patched</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:var(--track)"></span>not deployed</span>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px">
+<div style="padding:12px 14px;border-bottom:1px solid var(--line2);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">Correlated symptoms</div>
+<sc-for list="{{ symptoms }}" as="s" hint-placeholder-count="4">
+<div style="padding:10px 14px;border-bottom:1px solid var(--line2);display:flex;gap:10px;align-items:flex-start">
+<span style="{{ s.dot }}"></span>
+<div style="flex:1">
+<div style="font:400 12px/1.4 'Instrument Sans',sans-serif;color:var(--ink)">{{ s.text }}</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:3px">{{ s.meta }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="background:var(--accentSoft);border:1px solid var(--accentLine);border-radius:7px;padding:14px">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Recommended single action</div>
+<div style="font:500 14px/1.4 'Instrument Sans',sans-serif;color:var(--ink);margin-bottom:9px">Run one coordinated patch wave, Halcyon first.</div>
+<div style="font:400 11.5px/1.6 'Instrument Sans',sans-serif;color:var(--muted);margin-bottom:12px;text-wrap:pretty">Halcyon carries the only clause with an uncapped availability credit and its Gate 3 is already overdue. Patching it inside the 8 Aug window clears the milestone dependency and releases £340k. Castellan's freeze holds until 14 Aug — no clause breach if we wave it third.</div>
+<div style="display:flex;gap:8px">
+<div style="height:28px;display:flex;align-items:center;padding:0 11px;border-radius:4px;background:var(--accent);font:600 10.5px/1 'IBM Plex Mono',monospace;color:var(--accentFg);letter-spacing:.05em;cursor:pointer">SCHEDULE WAVE</div>
+<div style="height:28px;display:flex;align-items:center;padding:0 11px;border-radius:4px;border:1px solid var(--accentLine);font:600 10.5px/1 'IBM Plex Mono',monospace;color:var(--accent);letter-spacing:.05em;cursor:pointer">NOTIFY 3 CLIENTS</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isJournal }}" hint-placeholder-val="{{ false }}">
+<div style="padding:22px 22px 32px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Immutable log · 41 open risks across 8 clients</div>
+<div style="font:600 25px/1.05 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.022em">Risk journal</div>
+</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ journalFilters }}" as="f" hint-placeholder-count="4">
+<div style="{{ f.style }}">{{ f.label }}</div>
+</sc-for>
+</div>
+</div>
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px;overflow:hidden">
+<sc-for list="{{ journal }}" as="j" hint-placeholder-count="6">
+<div style="display:flex;gap:0;border-bottom:1px solid var(--line2)">
+<div style="width:112px;flex:none;padding:14px 12px;border-right:1px solid var(--line2);background:var(--surface2)">
+<div style="font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2)">{{ j.date }}</div>
+<div style="font:400 10px/1.4 'IBM Plex Mono',monospace;color:var(--faint);margin-top:4px">{{ j.time }}</div>
+<div style="{{ j.idStyle }}">{{ j.id }}</div>
+</div>
+<div style="flex:1;min-width:0;padding:14px">
+<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap">
+<span style="{{ j.sevStyle }}">{{ j.sev }}</span>
+<span style="font:600 13.5px/1.25 'Instrument Sans',sans-serif;color:var(--ink)">{{ j.title }}</span>
+<span style="font:400 11px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ j.client }}</span>
+</div>
+<div style="font:400 12.5px/1.55 'Instrument Sans',sans-serif;color:var(--muted);max-width:820px;margin-bottom:9px;text-wrap:pretty">{{ j.body }}</div>
+<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+<sc-for list="{{ j.links }}" as="l" hint-placeholder-count="3">
+<span style="{{ l.style }}">{{ l.text }}</span>
+</sc-for>
+</div>
+</div>
+<div style="width:214px;flex:none;padding:14px;border-left:1px solid var(--line2)">
+<div style="font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Movement</div>
+<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+<span style="{{ j.fromStyle }}">{{ j.from }}</span>
+<span style="font:400 11px/1 'IBM Plex Mono',monospace;color:var(--faint)">→</span>
+<span style="{{ j.toStyle }}">{{ j.to }}</span>
+</div>
+<div style="font:400 10.5px/1.5 'IBM Plex Mono',monospace;color:var(--muted)">{{ j.owner }}</div>
+<div style="font:400 10.5px/1.5 'IBM Plex Mono',monospace;color:var(--faint)">{{ j.due }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isQbr }}" hint-placeholder-val="{{ false }}">
+<div style="padding:22px 22px 32px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Northwind Rail · Q3 FY26 · assembled from 3 systems, 0 manual entry</div>
+<div style="font:600 25px/1.05 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.022em">QBR pack</div>
+</div>
+<div style="display:flex;gap:8px">
+<div onClick="{{ goClient }}" style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);background:var(--surface);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2);cursor:pointer">← 360</div>
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;border:1px solid var(--line);background:var(--surface);font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink2);cursor:pointer">Export PDF</div>
+<div style="height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;background:var(--accent);font:600 11px/1 'IBM Plex Mono',monospace;color:var(--accentFg);letter-spacing:.04em;cursor:pointer">SHARE WITH CLIENT</div>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:6px;background:var(--warnBg);border:1px solid var(--warn);margin-bottom:14px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);flex:none">2 claims need review</span>
+<span style="font:400 12px/1 'Instrument Sans',sans-serif;color:var(--ink2)">Availability figure is 30 days short of the reporting period, and the Gate 3 slide cites unverified evidence. Both are flagged in place.</span>
+<span style="margin-left:auto;font:600 10.5px/1 'IBM Plex Mono',monospace;color:var(--warn);cursor:pointer;border-bottom:1px solid var(--warn);flex:none">REVIEW BOTH →</span>
+</div>
+
+<div style="display:grid;grid-template-columns:236px 1fr;gap:12px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ qbrPages }}" as="p" hint-placeholder-count="7">
+<div style="{{ p.style }}">
+<span style="font:500 10px/1 'IBM Plex Mono',monospace;color:var(--faint);width:16px;flex:none">{{ p.n }}</span>
+<span style="flex:1;font:500 12px/1.3 'Instrument Sans',sans-serif">{{ p.title }}</span>
+<span style="{{ p.flagStyle }}">{{ p.flag }}</span>
+</div>
+</sc-for>
+</div>
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:26px 30px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--line)">
+<div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">Page 3 · Outcome performance</div>
+<div style="font:600 21px/1.15 'Instrument Sans',sans-serif;color:var(--ink);letter-spacing:-.02em">Are we delivering what the contract promised?</div>
+</div>
+<div style="font:400 10.5px/1.5 'IBM Plex Mono',monospace;color:var(--faint);text-align:right">Period 01 Apr – 30 Jun 2026<br>Generated 28 Jul, 09:14</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:18px 0;border-bottom:1px solid var(--line2)">
+<sc-for list="{{ qbrStats }}" as="s" hint-placeholder-count="4">
+<div>
+<div style="font:600 9.5px/1.35 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:9px;height:24px">{{ s.label }}</div>
+<div style="display:flex;align-items:baseline;gap:6px">
+<span style="{{ s.valStyle }}">{{ s.value }}</span>
+<span style="{{ s.deltaStyle }}">{{ s.delta }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+<span style="{{ s.srcStyle }}">{{ s.src }}</span>
+<span style="font:400 10px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ s.note }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="padding:18px 0 0">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Outcome detail</div>
+<sc-for list="{{ qbrRows }}" as="q" hint-placeholder-count="6">
+<div style="display:grid;grid-template-columns:1fr 96px 96px 132px 120px;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line2)">
+<div style="font:400 13px/1.35 'Instrument Sans',sans-serif;color:var(--ink)">{{ q.name }}</div>
+<div style="font:500 12.5px/1 'IBM Plex Mono',monospace;color:var(--muted)">{{ q.target }}</div>
+<div style="font:500 12.5px/1 'IBM Plex Mono',monospace;color:var(--ink)">{{ q.actual }}</div>
+<div><span style="{{ q.tagStyle }}">{{ q.tag }}</span></div>
+<div style="display:flex;align-items:center;gap:6px"><span style="{{ q.srcStyle }}">{{ q.src }}</span><span style="font:400 10px/1 'IBM Plex Mono',monospace;color:var(--faint)">{{ q.ref }}</span></div>
+</div>
+</sc-for>
+</div>
+<div style="margin-top:20px;padding:14px 16px;border-radius:6px;background:var(--surface2);border:1px solid var(--line2)">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:9px">Narrative · drafted from the risk journal</div>
+<div style="font:400 13px/1.65 'Instrument Sans',sans-serif;color:var(--ink2);max-width:820px;text-wrap:pretty">Four of six contracted outcomes are on or ahead of target. Two are behind: passenger-app crash-free rate sits at 99.1% against a 99.5% obligation, and Gate 3 evidence for the depot telemetry release is nine days overdue, which holds a £340k milestone payment. Both trace to the same root cause — Ingest Gateway remediation absorbing 2.5 FTE of planned feature capacity. Recovery plan and revised gate date are on page 5.</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1580,&quot;height&quot;:1120},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;},&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const MONO = "'IBM Plex Mono',monospace";
+const SANS = "'Instrument Sans',sans-serif";
+const pill = (c, bg) => `height:19px;display:inline-flex;align-items:center;padding:0 7px;border-radius:3px;background:${bg};color:${c};font:600 9.5px/1 ${MONO};letter-spacing:.08em;text-transform:uppercase;white-space:nowrap`;
+const src = () => `height:16px;display:inline-flex;align-items:center;padding:0 5px;border-radius:2px;background:var(--surface3);color:var(--muted);font:500 8.5px/1 ${MONO};letter-spacing:.07em;white-space:nowrap`;
+const tone = t => t === 'crit' ? 'var(--crit)' : t === 'warn' ? 'var(--warn)' : t === 'good' ? 'var(--good)' : 'var(--muted)';
+const toneBg = t => t === 'crit' ? 'var(--critBg)' : t === 'warn' ? 'var(--warnBg)' : t === 'good' ? 'var(--goodBg)' : 'var(--surface3)';
+
+class Component extends DCLogic {
+  state = { view: 'fleet', lens: false, theme: null };
+
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate() { this.applyTheme(); }
+  applyTheme() {
+    const t = this.state.theme || this.props.theme || 'light';
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', t);
+  }
+
+  go(v) { return () => this.setState({ view: v }); }
+
+  renderVals() {
+    const v = this.state.view;
+    const navDefs = [
+      ['fleet', 'Customer signal', '8'],
+      ['client', 'Client 360', ''],
+      ['correlate', 'Correlation', '1'],
+      ['journal', 'Risk journal', '41'],
+      ['qbr', 'QBR pack', '3']
+    ];
+
+    const rowData = [
+      ['NR','Northwind Rail','Transport & infrastructure','Watch','warn','4/6',67,[ 'crit','good','good','warn','good'],'1 breach','crit','103%','warn','burn 112%','−12%','warn',[6,7,6,8,7,5,4],'MSA + SOW-14 · fixed price','Renews 12 Nov','warn','7','2','£4.2m','+£0.4m CO','good'],
+      ['HH','Halcyon Health','Public health','At risk','crit','2/5',40,['crit','crit','warn','good','good'],'2 breach','crit','88%','good','burn 96%','−4%','warn',[7,6,6,5,6,5,5],'Framework RM6187 call-off','Renews 03 Sep','crit','9','3','£5.1m','−£0.2m','crit'],
+      ['CB','Castellan Bank','Financial services','On track','good','6/6',100,['good','good','good','good','good'],'clear','good','94%','good','burn 91%','+6%','good',[5,6,6,7,7,8,8],'MSA + 3 SOWs · T&M','Renews 28 Feb 27','muted','3','0','£8.4m','+£1.1m CO','good'],
+      ['VU','Verdant Utilities','Energy & utilities','Watch','warn','3/5',60,['warn','good','good','good','good'],'1 at risk','warn','71%','warn','bench 4.2 FTE','flat','muted',[6,6,6,6,6,6,6],'Managed service · run','Renews 19 Dec','warn','5','1','£3.3m','—','muted'],
+      ['OL','Orrery Logistics','Logistics','On track','good','5/5',100,['good','good','good','good','good'],'clear','good','97%','good','burn 94%','+11%','good',[4,5,6,6,7,8,9],'SOW-22 · fixed price','Renews 14 Jan 27','muted','2','0','£2.6m','+£0.3m CO','good'],
+      ['SM','Solent Marine','Defence','At risk','crit','1/4',25,['crit','warn','good','good','good'],'1 breach','crit','64%','crit','bench 6.1 FTE','−21%','crit',[8,7,6,5,4,3,3],'DEFCON call-off','Expires 30 Sep','crit','8','2','£1.9m','−£0.4m','crit'],
+      ['PM','Pellucid Media','Media','On track','good','4/4',100,['good','good','good','good','good'],'clear','good','91%','good','burn 89%','+3%','good',[6,6,7,7,7,7,8],'Retainer · rolling','Rolling · 90d notice','muted','1','0','£1.1m','—','muted'],
+      ['KP','Kestrel Pharma','Life sciences','Watch','warn','3/6',50,['warn','good','crit','good','good'],'1 at risk','warn','108%','crit','burn 118%','−7%','warn',[7,7,6,6,5,5,5],'MSA + SOW-08','Renews 22 Oct','warn','6','1','£3.7m','+£0.1m','good']
+    ];
+
+    const rows = rowData.map(d => ({
+      mark: d[0], name: d[1], sector: d[2], band: d[3],
+      markStyle: `width:30px;height:30px;flex:none;border-radius:4px;background:${toneBg(d[4])};color:${tone(d[4])};display:grid;place-items:center;font:600 10.5px/1 ${MONO}`,
+      bandStyle: pill(tone(d[4]), toneBg(d[4])),
+      outcomes: d[5],
+      outBar: `height:100%;width:${d[6]}%;background:${tone(d[6] >= 90 ? 'good' : d[6] >= 55 ? 'warn' : 'crit')};border-radius:2px`,
+      clauseDots: d[7].map(t => ({ style: `width:6px;height:6px;border-radius:1.5px;background:${tone(t)};flex:none` })),
+      clauseText: d[8],
+      clauseTextStyle: `font:500 10px/1 ${MONO};color:${tone(d[9])};margin-left:3px;white-space:nowrap`,
+      util: d[10],
+      utilStyle: `font:500 13px/1 ${MONO};color:${tone(d[11])};margin-bottom:4px`,
+      utilNote: d[12],
+      vel: d[13],
+      velStyle: `font:500 11.5px/1 ${MONO};color:${tone(d[14])};width:38px;flex:none`,
+      spark: d[15].map((h, i) => ({ style: `width:4px;height:${h * 2.1}px;border-radius:1px;background:${tone(d[14])};opacity:${0.35 + i * 0.09}` })),
+      vehicle: d[16], renew: d[17],
+      renewStyle: `font:500 10px/1.3 ${MONO};color:${tone(d[18])};margin-top:4px`,
+      risks: d[19], crit: d[20] === '0' ? '' : `${d[20]} crit`,
+      critStyle: `font:600 9.5px/1 ${MONO};color:var(--crit)`,
+      acv: d[21], delta: d[22],
+      deltaStyle: `font:400 10px/1.3 ${MONO};color:${tone(d[23])};margin-top:4px`,
+      open: () => this.setState({ view: 'client' })
+    }));
+
+    const kpiDefs = [
+      ['Total ACV', '£30.3m', '', '8 engagements · 3 frameworks', 'ink'],
+      ['Outcomes on track', '28/41', '68%', '−3 vs last week', 'warn'],
+      ['Clause breaches', '4', 'live', '2 carry SLA credit', 'crit'],
+      ['Exposure at risk', '£13.0m', '43%', 'of total ACV', 'crit'],
+      ['Capacity gap', '6.5', 'FTE', '3 roles open > 30 days', 'warn'],
+      ['QBRs due', '3', 'in 21d', 'next: Halcyon, 6 Aug', 'ink']
+    ];
+    const kpis = kpiDefs.map(k => ({
+      label: k[0], value: k[1], unit: k[2], sub: k[3],
+      valStyle: `font:600 24px/1 ${MONO};letter-spacing:-.02em;color:${k[4] === 'ink' ? 'var(--ink)' : tone(k[4])}`
+    }));
+
+    const decDefs = [
+      ['crit', 'P1', 'Halcyon Health — Gate 3 evidence 9 days overdue, £340k milestone blocked', 'SOW clause 7.2 · Jira HAL-482 unverified · owner D. Okafor', '£340k', 'REVIEW GATE', 'client'],
+      ['crit', 'P1', 'Ingest Gateway CVE spans 3 clients — patch collides with Castellan freeze', 'Correlated · Northwind, Halcyon, Kestrel · shared service', '£13.0m', 'OPEN CLUSTER', 'correlate'],
+      ['warn', 'P2', 'Northwind Rail — 103% utilisation for 5 weeks, 2 leads flagged attrition', 'Workday · burn 112% of plan · margin 18% → 11%', '£4.2m', 'RESOURCE PLAN', 'client'],
+      ['warn', 'P2', 'Solent Marine — call-off expires in 64 days, no renewal motion open', 'Salesforce · no opportunity · CSAT 6.1 ↓ from 7.8', '£1.9m', 'START RENEWAL', 'journal']
+    ];
+    const decisions = decDefs.map(d => ({
+      sev: d[1], sevStyle: pill(tone(d[0]), toneBg(d[0])),
+      title: d[2], meta: d[3], exposure: d[4], action: d[5],
+      act: () => this.setState({ view: d[6] })
+    }));
+
+    const renewDefs = [
+      ['Solent Marine', '64 d', 'crit', 18, '£1.9m', 'No opportunity open · CSAT 6.1'],
+      ['Halcyon Health', '37 d', 'crit', 10, '£5.1m', 'Re-compete · 2 clause breaches live'],
+      ['Kestrel Pharma', '86 d', 'warn', 30, '£3.7m', 'Expansion case drafted'],
+      ['Northwind Rail', '107 d', 'warn', 42, '£4.2m', 'Change order £0.4m in review'],
+      ['Verdant Utilities', '144 d', 'good', 62, '£3.3m', 'Auto-renews unless 60d notice']
+    ];
+    const renewals = renewDefs.map(r => ({
+      name: r[0], days: r[1], value: r[4], note: r[5],
+      daysStyle: `font:600 9.5px/1 ${MONO};color:${tone(r[2])};letter-spacing:.06em`,
+      bar: `height:100%;width:${r[3]}%;background:${tone(r[2])};border-radius:2px`
+    }));
+
+    const tileDefs = [
+      ['Contract value', '£4.2m', 'ACV', '£11.6m TCV · to Nov 27', 'SALESFORCE', 'ink'],
+      ['Milestone gates', '3/5', 'passed', '1 overdue · £340k held', 'JIRA', 'warn'],
+      ['Outcome index', '67', '/100', '−8 this quarter', 'DERIVED', 'warn'],
+      ['Capacity', '103%', 'util', '18.5 of 21 FTE assigned', 'WORKDAY', 'warn'],
+      ['Margin', '11%', 'actual', 'plan 18% · burn 112%', 'WORKDAY', 'crit']
+    ];
+    const clientTiles = tileDefs.map(t => ({
+      label: t[0], value: t[1], unit: t[2], sub: t[3], src: t[4], srcStyle: src(),
+      valStyle: `font:600 22px/1 ${MONO};letter-spacing:-.02em;color:${t[5] === 'ink' ? 'var(--ink)' : tone(t[5])}`
+    }));
+
+    const outDefs = [
+      ['Passenger app crash-free rate', '99.1%', '99.5%', 91, 'good', 'Behind', 'warn', 'JIRA'],
+      ['Depot telemetry coverage', '74 sites', '90 sites', 82, 'warn', 'At risk', 'warn', 'JIRA'],
+      ['Mean incident response', '11 min', '15 min', 100, 'good', 'Ahead', 'good', 'JSM'],
+      ['Ticketing throughput uplift', '+18%', '+15%', 100, 'good', 'Met', 'good', 'DERIVED'],
+      ['Legacy decommission', '3 of 7', '7', 43, 'crit', 'Behind', 'crit', 'JIRA'],
+      ['Ops team certification', '46 staff', '40 staff', 100, 'good', 'Met', 'good', 'WORKDAY']
+    ];
+    const outcomes = outDefs.map(o => ({
+      name: o[0], actual: o[1], target: o[2], tag: o[5], src: o[7], srcStyle: src(),
+      pipStyle: `width:7px;height:7px;border-radius:50%;background:${tone(o[4])};flex:none`,
+      bar: `position:absolute;left:0;top:0;height:100%;width:${o[3]}%;background:${tone(o[4])};border-radius:3px`,
+      marker: `position:absolute;left:calc(100% - 2px);top:-2px;width:2px;height:9px;background:var(--ink);opacity:.35`,
+      tagStyle: pill(tone(o[6]), toneBg(o[6]))
+    }));
+
+    const clauseDefs = [
+      ['crit', 'BREACH', '§7.2', 'Milestone gate — Release 4 evidence', 'Signed UAT pack + release note within 5 working days of gate date', 'Evidence missing · HAL pattern', 'checked 14 min ago', '£340k held', 'crit'],
+      ['warn', 'AT RISK', '§4.1', 'Availability — passenger app', '≥ 99.5% monthly, credits at 99.0%', 'Rolling 30d: 99.1%', 'checked 14 min ago', '£62k credit', 'warn'],
+      ['good', 'MET', '§9.4', 'Change control — scope variation', 'All variation > £50k signed by both parties before work starts', 'CO-2026-11 signed 14 Jul', 'checked 14 min ago', '', 'muted'],
+      ['good', 'MET', '§12.1', 'Key personnel continuity', 'Named roles ≥ 80% continuity per quarter', 'Workday: 88% continuity', 'checked 1 h ago', '', 'muted'],
+      ['warn', 'WATCH', '§6.3', 'Security remediation window', 'Critical CVE patched within 14 days of disclosure', 'CVE-2026-1180 · day 3 of 14', 'checked 8 min ago', 'uncapped', 'warn'],
+      ['good', 'MET', '§15.2', 'Reporting cadence', 'Monthly service report by 5th working day', '4 of 4 delivered on time', 'checked 1 d ago', '', 'muted']
+    ];
+    const clauses = clauseDefs.map(c => ({
+      state: c[1], stateStyle: pill(tone(c[0]), toneBg(c[0])) + ';margin-top:1px;flex:none',
+      ref: c[2], name: c[3], test: c[4], evidence: c[5], checked: c[6], money: c[7],
+      evStyle: `height:17px;display:inline-flex;align-items:center;padding:0 6px;border-radius:2px;background:${toneBg(c[0])};color:${tone(c[0])};font:500 10px/1 ${MONO};white-space:nowrap`,
+      moneyStyle: `font:600 11.5px/1.3 ${MONO};color:${tone(c[8])};flex:none;text-align:right;width:62px;padding-top:2px`
+    }));
+
+    const teamDefs = [
+      ['Delivery lead', 100, 'good', '100%', ''],
+      ['Platform engineering ×6', 112, 'crit', '112%', 'ATTRITION ×2'],
+      ['Data engineering ×4', 108, 'warn', '108%', ''],
+      ['QA ×3', 96, 'good', '96%', ''],
+      ['Site reliability ×2', 62, 'warn', '62%', 'OPEN ROLE ×1']
+    ];
+    const team = teamDefs.map(p => ({
+      role: p[0], pct: p[3],
+      bar: `height:100%;width:${Math.min(p[1], 100)}%;background:${tone(p[2])};opacity:.75`,
+      pctStyle: `font:500 11px/1 ${MONO};color:${tone(p[2])};width:38px;text-align:right;flex:none`,
+      flag: p[4], flagStyle: p[4] ? pill('var(--crit)', 'var(--critBg)') + ';flex:none' : 'display:none'
+    }));
+
+    const vel = [42, 45, 44, 47, 46, 41, 38, 36, 33, 31];
+    const velocity = vel.map((h, i) => ({
+      title: `Sprint ${31 + i} · ${h} pts`,
+      style: `flex:1;height:${(h / 47) * 100}%;border-radius:2px 2px 0 0;background:${i > 5 ? 'var(--warn)' : 'var(--accent)'};opacity:${i > 5 ? 0.9 : 0.55}`
+    }));
+
+    const epicDefs = [
+      ['NWR-482', 'Depot telemetry rollout — wave 3', '9 d blocked', 'crit', 'GATE 3', 'crit'],
+      ['NWR-455', 'Ingest Gateway remediation', '—', 'muted', 'IN PROGRESS', 'warn'],
+      ['NWR-401', 'Passenger app stability programme', '2 d blocked', 'warn', 'IN PROGRESS', 'warn'],
+      ['NWR-388', 'Legacy ticketing decommission 4–7', '14 d blocked', 'crit', 'NOT STARTED', 'crit']
+    ];
+    const epics = epicDefs.map(e => ({
+      key: e[0], name: e[1], blocked: e[2],
+      blockStyle: `font:500 10.5px/1 ${MONO};color:${tone(e[3])};width:74px;text-align:right;flex:none`,
+      state: e[4], stateStyle: pill(tone(e[5]), toneBg(e[5])) + ';flex:none'
+    }));
+
+    const chainDefs = [
+      [[['Outcome', 'Depot telemetry coverage', '74 / 90 sites', 'DERIVED'],
+        ['Clause', '§7.2 milestone gate', 'Release 4 evidence', 'SALESFORCE'],
+        ['Work', 'NWR-482 wave 3', '9 days blocked', 'JIRA'],
+        ['Capacity', '2.5 FTE diverted', 'to CVE remediation', 'WORKDAY'],
+        ['Evidence', 'UAT pack', 'not attached', 'JIRA']], 'Breach — £340k held', 'crit'],
+      [[['Outcome', 'Crash-free rate', '99.1% vs 99.5%', 'JIRA'],
+        ['Clause', '§4.1 availability', 'credits at 99.0%', 'SALESFORCE'],
+        ['Work', 'NWR-401 stability', '2 days blocked', 'JIRA'],
+        ['Capacity', 'QA at 96%', 'no headroom', 'WORKDAY'],
+        ['Evidence', 'Crashlytics export', 'verified 14 min ago', 'JIRA']], 'At risk — £62k credit', 'warn'],
+      [[['Outcome', 'Ticketing throughput', '+18% vs +15%', 'DERIVED'],
+        ['Clause', '§3.4 benefit case', 'met', 'SALESFORCE'],
+        ['Work', 'NWR-360 closed', 'sprint 38', 'JIRA'],
+        ['Capacity', 'released 1.8 FTE', 'to wave 3', 'WORKDAY'],
+        ['Evidence', 'Client-signed benefit', '02 Jul 2026', 'SALESFORCE']], 'Met — cite in QBR', 'good']
+    ];
+    const chains = chainDefs.map(c => ({
+      steps: c[0].map((s, i) => ({
+        kind: s[0], label: s[1], meta: s[2], src: s[3], srcStyle: src(),
+        wrap: `flex:1;min-width:0;padding:11px 13px;${i ? 'border-left:1px solid var(--line)' : ''}`
+      })),
+      verdict: c[1],
+      verdictWrap: `width:180px;flex:none;padding:11px 13px;background:${toneBg(c[2])};color:${tone(c[2])};border-left:1px solid var(--line)`
+    }));
+
+    const corrKpiDefs = [
+      ['Clients affected', '3 of 8', 'Northwind · Halcyon · Kestrel', 'crit'],
+      ['ACV exposed', '£13.0m', '43% of total ACV', 'crit'],
+      ['Clauses engaged', '5', '2 with financial remedy', 'warn'],
+      ['Remediation cost', '9.5 FTE-wk', 'diverts 2 milestone gates', 'warn']
+    ];
+    const corrKpis = corrKpiDefs.map(k => ({
+      label: k[0], value: k[1], sub: k[2],
+      valStyle: `font:600 24px/1 ${MONO};letter-spacing:-.02em;color:${tone(k[3])}`
+    }));
+
+    const affDefs = [
+      ['HH', 'crit', 'Halcyon Health', 'prod + 2 regional', 'v4.1.2', 'Direct · internet-facing', 'crit', '§6.3 remediation, 14 days — uncapped availability credit', 'Framework RM6187 · Sch 2.4', 'by 08 Aug · 11 d left', '£5.1m', 'ACV + credit risk'],
+      ['NR', 'crit', 'Northwind Rail', 'prod', 'v4.1.0', 'Direct · internal only', 'crit', '§6.3 remediation, 14 days', 'MSA-2023-041', 'by 10 Aug · 13 d left', '£4.2m', 'gate 3 collision'],
+      ['KP', 'warn', 'Kestrel Pharma', 'staging only', 'v4.0.8', 'Indirect · not exposed', 'warn', '§8.1 GxP change notice, 30 days', 'MSA + SOW-08', 'next window 02 Sep', '£3.7m', 'validation re-run'],
+      ['CB', 'good', 'Castellan Bank', 'prod', 'v3.9.4', 'Not vulnerable', 'good', '§11.2 release freeze until 14 Aug', 'MSA + SOW-31', 'freeze · wave 3', '£8.4m', 'no action']
+    ];
+    const affected = affDefs.map(a => ({
+      mark: a[0], name: a[2], env: a[3], version: a[4], exp: a[5],
+      markStyle: `width:26px;height:26px;flex:none;border-radius:4px;background:${toneBg(a[1])};color:${tone(a[1])};display:grid;place-items:center;font:600 9.5px/1 ${MONO}`,
+      expStyle: pill(tone(a[6]), toneBg(a[6])),
+      clause: a[7], clauseRef: a[8], window: a[9], liability: a[10], liabilityNote: a[11]
+    }));
+
+    const matrixCols = ['NR', 'HH', 'CB', 'VU', 'OL', 'SM', 'PM', 'KP'];
+    const matrixDefs = [
+      ['Ingest Gateway v4', ['crit', 'crit', 'good', 'none', 'good', 'none', 'none', 'warn']],
+      ['Identity broker v2', ['good', 'warn', 'good', 'good', 'good', 'warn', 'none', 'good']],
+      ['Event bus (managed)', ['good', 'good', 'good', 'warn', 'good', 'none', 'good', 'good']],
+      ['Reporting warehouse', ['warn', 'good', 'good', 'good', 'warn', 'good', 'good', 'good']],
+      ['Edge telemetry agent', ['crit', 'none', 'none', 'warn', 'good', 'crit', 'none', 'none']]
+    ];
+    const matrix = matrixDefs.map(m => ({
+      service: m[0],
+      cells: m[1].map((t, i) => ({
+        mark: t === 'crit' ? '!' : '',
+        title: `${matrixCols[i]} · ${t}`,
+        style: `height:24px;border-radius:3px;background:${t === 'none' ? 'var(--track)' : tone(t)};opacity:${t === 'none' ? 0.5 : 0.85};display:grid;place-items:center;font:700 10px/1 ${MONO};color:var(--surface)`
+      }))
+    }));
+
+    const sympDefs = [
+      ['crit', 'Ingest latency p99 up 4× on Halcyon and Northwind within 40 minutes of each other', 'Both on v4.1.x · same deploy pipeline'],
+      ['warn', 'Kestrel raised 3 tickets describing the same malformed-payload error', 'Not yet linked to the CVE by the client'],
+      ['warn', 'Two clients logged the same symptom as "performance", one as "security"', 'Triage taxonomy drift — merged into this cluster'],
+      ['good', 'Castellan patched to v3.9.4 in June and shows no signal', 'Their remediation runbook is the reusable one']
+    ];
+    const symptoms = sympDefs.map(s => ({
+      dot: `width:7px;height:7px;border-radius:50%;background:${tone(s[0])};flex:none;margin-top:5px`,
+      text: s[1], meta: s[2]
+    }));
+
+    const filterDefs = [['All clients', true], ['Critical only', false], ['Clause-linked', false], ['Mine', false]];
+    const journalFilters = filterDefs.map(f => ({
+      label: f[0],
+      style: `height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;cursor:pointer;font:500 11px/1 ${MONO};${f[1] ? 'background:var(--accent);color:var(--accentFg)' : 'border:1px solid var(--line);background:var(--surface);color:var(--muted)'}`
+    }));
+
+    const jDefs = [
+      ['28 Jul 2026', '09:14', 'RSK-1180', 'crit', 'P1', 'Shared ingest component vulnerable across 3 accounts', 'Cross-customer · 3 clients',
+        'Automated correlation opened a cross-customer cluster after CVE-2026-1180 matched the service inventory for Northwind, Halcyon and Kestrel. Contract re-scoring shows Halcyon carries an uncapped availability credit and the shortest remediation window, so it leads the patch wave. Castellan is on v3.9.4 and unaffected; their runbook has been attached as the reference remediation.',
+        [['CVE-2026-1180', 'crit'], ['§6.3 ×2', 'warn'], ['Jira HAL-501', 'muted'], ['Cluster C-114', 'muted']], 'New', 'muted', 'Open · P1', 'crit', 'Owner P. Raman', 'Wave 1 due 08 Aug'],
+      ['26 Jul 2026', '16:40', 'RSK-1164', 'crit', 'P1', 'Gate 3 evidence overdue — £340k milestone blocked', 'Northwind Rail',
+        'Release 4 UAT pack was not attached within the 5-day window in §7.2, so the gate auto-failed and the milestone payment is held. Root cause is 2.5 FTE diverted from wave 3 into CVE remediation. Revised gate date of 14 Aug agreed verbally with the client sponsor; change note pending signature.',
+        [['§7.2 breach', 'crit'], ['Jira NWR-482', 'muted'], ['£340k held', 'crit'], ['CO pending', 'warn']], 'Watch', 'warn', 'Breach', 'crit', 'Owner D. Okafor', 'Re-gate 14 Aug'],
+      ['24 Jul 2026', '11:02', 'RSK-1152', 'warn', 'P2', 'Utilisation above 100% for five consecutive weeks', 'Northwind Rail',
+        'Workday shows platform engineering at 112% with two leads flagged as attrition risk in the last engagement survey. Margin has moved from 18% plan to 11% actual. Two options modelled: absorb via change order £0.4m, or re-sequence wave 3 behind the CVE work. Recommendation goes to the QBR on 12 Aug.',
+        [['Workday', 'muted'], ['margin 11%', 'crit'], ['CO-2026-11', 'good']], 'New', 'muted', 'Open · P2', 'warn', 'Owner P. Raman', 'Decision 12 Aug'],
+      ['21 Jul 2026', '08:25', 'RSK-1138', 'crit', 'P1', 'Call-off expires in 71 days with no renewal motion', 'Solent Marine',
+        'No Salesforce opportunity exists against the DEFCON call-off expiring 30 Sep. CSAT has fallen from 7.8 to 6.1 and one of four contracted outcomes is on track. Escalated to the sector partner; recovery plan and re-compete decision required before 15 Aug or the account should be planned as a managed exit.',
+        [['no opportunity', 'crit'], ['CSAT 6.1', 'crit'], ['1/4 outcomes', 'crit']], 'Watch', 'warn', 'Escalated', 'crit', 'Owner A. Lindqvist', 'Gate 15 Aug'],
+      ['18 Jul 2026', '14:55', 'RSK-1121', 'warn', 'P2', 'GxP validation re-run needed before staging patch', 'Kestrel Pharma',
+        'Any change to the ingest path triggers a 30-day change notice and a validation re-run under §8.1. Staging is not internet-facing so exposure is indirect; the patch is scheduled into the 02 Sep window rather than the emergency wave. Client quality lead has acknowledged in writing.',
+        [['§8.1 notice', 'warn'], ['staging only', 'good'], ['02 Sep window', 'muted']], 'New', 'muted', 'Open · P2', 'warn', 'Owner M. Chen', 'Window 02 Sep'],
+      ['15 Jul 2026', '10:10', 'RSK-1109', 'good', 'CLOSED', 'Ticketing throughput benefit signed off at +18%', 'Northwind Rail',
+        'Benefit case in §3.4 was independently verified and signed by the client on 02 Jul at +18% against a +15% target. 1.8 FTE released back to wave 3. Closed with evidence attached; cited on page 3 of the Q3 QBR.',
+        [['§3.4 met', 'good'], ['client-signed', 'good'], ['+1.8 FTE', 'good']], 'Open', 'warn', 'Closed', 'good', 'Closed by P. Raman', 'Verified 02 Jul']
+    ];
+    const journal = jDefs.map(j => ({
+      date: j[0], time: j[1], id: j[2],
+      idStyle: `font:500 9.5px/1 ${MONO};color:${tone(j[3])};margin-top:9px`,
+      sev: j[4], sevStyle: pill(tone(j[3]), toneBg(j[3])),
+      title: j[5], client: j[6], body: j[7],
+      links: j[8].map(l => ({
+        text: l[0],
+        style: `height:19px;display:inline-flex;align-items:center;padding:0 7px;border-radius:3px;background:${toneBg(l[1])};color:${tone(l[1])};font:500 10px/1 ${MONO};white-space:nowrap`
+      })),
+      from: j[9], fromStyle: pill(tone(j[10]), toneBg(j[10])),
+      to: j[11], toStyle: pill(tone(j[12]), toneBg(j[12])),
+      owner: j[13], due: j[14]
+    }));
+
+    const pageDefs = [
+      ['01', 'Executive summary', '', false],
+      ['02', 'Contract & commercial position', '', false],
+      ['03', 'Outcome performance', '', true],
+      ['04', 'Clause & obligation status', '1 BREACH', false],
+      ['05', 'Risk register & recovery plan', '', false],
+      ['06', 'Capacity, margin & people', '', false],
+      ['07', 'Technical architecture & roadmap', '2 FLAGS', false]
+    ];
+    const qbrPages = pageDefs.map(p => ({
+      n: p[0], title: p[1],
+      style: `display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:6px;cursor:pointer;${p[3] ? 'background:var(--accent);color:var(--accentFg);border:1px solid var(--accent)' : 'background:var(--surface);border:1px solid var(--line);color:var(--ink2)'}`,
+      flag: p[2],
+      flagStyle: p[2] ? pill('var(--warn)', 'var(--warnBg)') + ';flex:none' : 'display:none'
+    }));
+
+    const qStatDefs = [
+      ['Outcomes met or ahead', '4 / 6', '−1 QoQ', 'warn', 'DERIVED', '41 measures'],
+      ['Availability', '99.1%', 'vs 99.5%', 'crit', 'JIRA', '30d — period is 91d'],
+      ['Gates passed', '3 / 5', '1 overdue', 'warn', 'JIRA', 'gate 3 unverified'],
+      ['CSAT', '7.4', '+0.3', 'good', 'SALESFORCE', 'n = 14']
+    ];
+    const qbrStats = qStatDefs.map(s => ({
+      label: s[0], value: s[1], delta: s[2], src: s[4], note: s[5], srcStyle: src(),
+      valStyle: `font:600 26px/1 ${MONO};letter-spacing:-.02em;color:${tone(s[3])}`,
+      deltaStyle: `font:500 11px/1 ${MONO};color:${tone(s[3])}`
+    }));
+
+    const qRowDefs = [
+      ['Passenger app crash-free rate', '99.5%', '99.1%', 'Behind', 'warn', 'JIRA', 'NWR-401'],
+      ['Depot telemetry coverage', '90 sites', '74 sites', 'At risk', 'warn', 'JIRA', 'NWR-482'],
+      ['Mean incident response', '15 min', '11 min', 'Ahead', 'good', 'JSM', 'INC-*'],
+      ['Ticketing throughput uplift', '+15%', '+18%', 'Met', 'good', 'SALESFORCE', 'signed 02 Jul'],
+      ['Legacy decommission', '7 systems', '3 systems', 'Behind', 'crit', 'JIRA', 'NWR-388'],
+      ['Ops team certification', '40 staff', '46 staff', 'Met', 'good', 'WORKDAY', 'LRN-2026']
+    ];
+    const qbrRows = qRowDefs.map(q => ({
+      name: q[0], target: q[1], actual: q[2], tag: q[3], src: q[5], ref: q[6],
+      tagStyle: pill(tone(q[4]), toneBg(q[4])), srcStyle: src()
+    }));
+
+    return {
+      showNotes: this.props.showNotes ?? true,
+      isFleet: v === 'fleet', isClient: v === 'client', isCorrelate: v === 'correlate',
+      isJournal: v === 'journal', isQbr: v === 'qbr',
+      goFleet: this.go('fleet'), goClient: this.go('client'), goCorrelate: this.go('correlate'),
+      goJournal: this.go('journal'), goQbr: this.go('qbr'),
+      toggleTheme: () => this.setState(s => ({ theme: (s.theme || this.props.theme || 'light') === 'light' ? 'dark' : 'light' })),
+      toggleLens: () => this.setState(s => ({ lens: !s.lens })),
+      lensStyle: `height:29px;display:flex;align-items:center;padding:0 11px;border-radius:5px;cursor:pointer;font:500 11px/1 ${MONO};${this.state.lens ? 'background:var(--accent);color:var(--accentFg)' : 'border:1px solid var(--line);background:var(--surface);color:var(--muted)'}`,
+      nav: navDefs.map(n => ({
+        label: n[1], count: n[2], go: this.go(n[0]),
+        style: `display:flex;align-items:center;gap:9px;height:31px;padding:0 8px;border-radius:5px;cursor:pointer;font:${v === n[0] ? '600' : '400'} 12.5px/1 ${SANS};color:${v === n[0] ? 'var(--ink)' : 'var(--muted)'};background:${v === n[0] ? 'var(--accentSoft)' : 'transparent'}`,
+        bar: `width:2px;height:13px;border-radius:1px;background:${v === n[0] ? 'var(--accent)' : 'transparent'};flex:none`,
+        countStyle: `font:500 10px/1 ${MONO};color:var(--faint)`
+      })),
+      sources: [
+        { name: 'Salesforce', age: '6 min', dot: 'width:5px;height:5px;border-radius:50%;background:var(--good)' },
+        { name: 'Workday', age: '2 h', dot: 'width:5px;height:5px;border-radius:50%;background:var(--good)' },
+        { name: 'Jira', age: '14 min', dot: 'width:5px;height:5px;border-radius:50%;background:var(--good)' }
+      ],
+      kpis, rows, decisions, renewals,
+      clientTiles, outcomes, clauses, team, velocity, epics, chains,
+      corrKpis, affected, matrixCols, matrix, symptoms,
+      journalFilters, journal,
+      qbrPages, qbrStats, qbrRows
+    };
+  }
+}
+</script>
+</body>
+</html>
