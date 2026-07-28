@@ -374,6 +374,93 @@ func (s *server) correlation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GET /api/customers/{id}/delivery — delivery-focused view of one client:
+// outcomes driven by capacity, all work grouped by status (no sprint lens),
+// platform gaps blocking the client, open risks, and the definitions that
+// explain how the numbers are computed.
+func (s *server) delivery(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	who, err := s.queryRows(`
+		SELECT cs.customer_id, cs.engagement_id, cs.name, cs.mark, cs.sector,
+		       cs.health_band, cs.velocity_delta_pct
+		FROM semantic.v_customer_signal cs WHERE cs.customer_id = ?`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if len(who) == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown customer"})
+		return
+	}
+	eng := who[0]["engagement_id"]
+
+	workload, err := s.queryRows(`
+		SELECT source_key, source_system, kind, title, status, gate_ref,
+		       CAST(blocked_days AS BIGINT) AS blocked_days, delivery_outcome, priority
+		FROM semantic.v_client_workload WHERE customer_id = ?
+		ORDER BY CASE status WHEN 'blocked' THEN 0 WHEN 'gate' THEN 1 WHEN 'in_progress' THEN 2
+		                     WHEN 'open' THEN 3 WHEN 'waiting_client' THEN 4 WHEN 'waiting_us' THEN 5
+		                     WHEN 'not_started' THEN 6 ELSE 7 END,
+		         blocked_days DESC NULLS LAST`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	deliveryOutcomes, err := s.queryRows(`
+		SELECT d.name, d.description, d.status, d.target_date,
+		       o.name AS supports_contracted,
+		       (SELECT CAST(SUM(a.assigned_fte) AS DOUBLE) FROM core.assignment a
+		          WHERE a.delivery_outcome_id = d.id) AS committed_fte
+		FROM core.delivery_outcome d
+		LEFT JOIN core.outcome o ON o.id = d.contracted_outcome_id
+		WHERE d.engagement_id = ?
+		ORDER BY CASE d.status WHEN 'late' THEN 0 WHEN 'at_risk' THEN 1 WHEN 'on_track' THEN 2 ELSE 3 END`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	gaps, err := s.queryRows(`
+		SELECT g.name, g.description, g.status, g.eta, g.owner,
+		       gc.blocking_note, gc.linked_ref,
+		       (SELECT CAST(COUNT(*) AS BIGINT) FROM core.platform_gap_customer x
+		          WHERE x.gap_id = g.id) AS reach
+		FROM core.platform_gap g
+		JOIN core.platform_gap_customer gc ON gc.gap_id = g.id
+		WHERE gc.customer_id = ?
+		ORDER BY reach DESC`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	risks, err := s.queryRows(`
+		SELECT je.risk_ref, je.severity, je.tone, je.title, je.state, je.owner,
+		       je.due_note, CAST(je.exposure_pennies AS BIGINT) AS exposure_pennies, je.created_at
+		FROM audit.journal_entry je
+		JOIN audit.journal_entry_customer jc ON jc.journal_id = je.id
+		WHERE jc.customer_id = ? AND je.state <> 'closed'
+		ORDER BY je.created_at DESC`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	definitions, err := s.queryRows(`
+		SELECT key, title, definition, formula, inputs FROM core.definition ORDER BY key`)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"who": who[0], "workload": workload, "delivery_outcomes": deliveryOutcomes,
+		"gaps": gaps, "risks": risks, "definitions": definitions,
+	})
+}
+
 // GET /api/rag — RAG board: band movement vs last snapshot, discussion topics
 // from the journal, and incidents bubbling toward severity.
 func (s *server) rag(w http.ResponseWriter, r *http.Request) {

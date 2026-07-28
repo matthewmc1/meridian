@@ -5,13 +5,15 @@ import Customer360 from './views/Customer360'
 import Journal from './views/Journal'
 import Correlation from './views/Correlation'
 import Rag from './views/Rag'
+import Delivery from './views/Delivery'
 
-export type View = 'signal' | 'rag' | 'customer' | 'correlate' | 'journal'
+export type View = 'signal' | 'rag' | 'customer' | 'delivery' | 'correlate' | 'journal'
 
 const NAV: { view: View; label: string }[] = [
   { view: 'signal', label: 'Customer signal' },
   { view: 'rag', label: 'RAG board' },
   { view: 'customer', label: 'Customer 360' },
+  { view: 'delivery', label: 'Delivery & risk' },
   { view: 'correlate', label: 'Correlation' },
   { view: 'journal', label: 'Risk journal' },
 ]
@@ -121,6 +123,7 @@ export default function App() {
           {view === 'customer' && (
             <Customer360 customerId={customerId} onBack={() => setView('signal')} onPick={openCustomer} />
           )}
+          {view === 'delivery' && <Delivery customerId={customerId} onPick={setCustomerId} />}
           {view === 'correlate' && <Correlation onOpenCustomer={openCustomer} />}
           {view === 'journal' && <Journal />}
         </main>

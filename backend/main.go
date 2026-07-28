@@ -81,6 +81,7 @@ func main() {
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/signal", s.signal)
 	mux.HandleFunc("GET /api/customers/{id}", s.customer360)
+	mux.HandleFunc("GET /api/customers/{id}/delivery", s.delivery)
 	mux.HandleFunc("GET /api/journal", s.journal)
 	mux.HandleFunc("GET /api/correlation", s.correlation)
 	mux.HandleFunc("GET /api/rag", s.rag)

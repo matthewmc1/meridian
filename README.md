@@ -38,9 +38,11 @@ connectors (docs/DATA_LAYER_DESIGN.md §1) changes nothing downstream.
 |---|---|
 | `GET /api/health` | sidebar source freshness (staging.sync_status) |
 | `GET /api/signal` | Customer signal: KPI strip, ranked table, decision queue, renewal runway |
-| `GET /api/customers/{id}` | Customer 360: outcomes vs clauses, capacity, evidence, epics |
+| `GET /api/rag` | RAG board: band movement vs weekly snapshot + bubbling-up incidents |
+| `GET /api/customers/{id}` | Customer 360: outcomes vs clauses, capacity→delivery outcomes, artifact library, products & telemetry |
+| `GET /api/customers/{id}/delivery` | Delivery & risk: all work by status (no sprint lens), platform gaps, risks, definitions |
 | `GET /api/journal` | Risk journal (append-only audit.journal_entry) |
-| `GET /api/correlation` | blast radius, shared-service matrix, correlated symptoms |
+| `GET /api/correlation` | blast radius, source-linked impact rationale, shared-service matrix, symptoms |
 
 ## Where derived numbers come from
 

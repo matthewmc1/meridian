@@ -73,7 +73,11 @@ INSERT INTO core.clause VALUES
   ('cl-sm-21',  'ci-sm', 'eng-sm', '§2.1',  'Availability — maintenance system', '≥ 99.0% monthly', '{"metric":"availability_pct","gte":99.0}', 1, 'auto', 'sla', 'sla_credit', 1500000, 15),
   ('cl-pm-11',  'ci-pm', 'eng-pm', '§1.1',  'Response times', 'P1 response within 30 min', '{"metric":"p1_response_mins","lte":30}', 1, 'auto', 'sla', NULL, NULL, 15),
   ('cl-kp-81',  'ci-kp', 'eng-kp', '§8.1',  'GxP change notice', '30-day change notice + validation re-run for ingest-path changes', '{"change_notice_days":30}', 1, 'manual_attest', 'change_control', NULL, NULL, 1440),
-  ('cl-kp-41',  'ci-kp', 'eng-kp', '§4.1',  'Pipeline availability', '≥ 99.5% monthly', '{"metric":"availability_pct","gte":99.5}', 1, 'auto', 'sla', 'sla_credit', 3000000, 15);
+  ('cl-kp-41',  'ci-kp', 'eng-kp', '§4.1',  'Pipeline availability', '≥ 99.5% monthly', '{"metric":"availability_pct","gte":99.5}', 1, 'auto', 'sla', 'sla_credit', 3000000, 15),
+  ('cl-vu-71',  'ci-vu', 'eng-vu', '§7.1',  'Service reporting cadence', 'Monthly service report by 5th working day', '{"report_by_working_day":5}', 1, 'auto', 'reporting', NULL, NULL, 1440),
+  ('cl-ol-88',  'ci-ol', 'eng-ol', '§8.8',  'Benefit case verification', 'Forecast-accuracy benefit independently verified each quarter', '{"benefit_verified_quarterly":true}', 1, 'assisted', 'benefit_case', NULL, NULL, 10080),
+  ('cl-pm-52',  'ci-pm', 'eng-pm', '§5.2',  'Key personnel continuity', 'Named roles ≥ 80% continuity per quarter', '{"metric":"continuity_pct","gte":80}', 1, 'auto', 'personnel', NULL, NULL, 1440),
+  ('cl-sm-91',  'ci-sm', 'eng-sm', '§9.1',  'Security patching window', 'Critical CVE patched within 21 days of disclosure', '{"cve_patched_within_days":21}', 1, 'auto', 'security_remediation', NULL, NULL, 60);
 
 -- Latest clause evaluations ----------------------------------------------------
 INSERT INTO audit.clause_evaluation VALUES
@@ -93,7 +97,11 @@ INSERT INTO audit.clause_evaluation VALUES
   ('ev-sm-21',  'cl-sm-21',  1, TIMESTAMP '2026-07-28 09:00:00', 'breach',  'Rolling 30d: 98.2%', '£15k credit', '{"value":98.2}'),
   ('ev-pm-11',  'cl-pm-11',  1, TIMESTAMP '2026-07-28 09:00:00', 'met',     'P1 median response 12 min', NULL, '{"value":12}'),
   ('ev-kp-81',  'cl-kp-81',  1, TIMESTAMP '2026-07-27 12:00:00', 'at_risk', 'Ingest patch requires notice · window 02 Sep', NULL, '{}'),
-  ('ev-kp-41',  'cl-kp-41',  1, TIMESTAMP '2026-07-28 09:00:00', 'met',     'Rolling 30d: 99.7%', NULL, '{"value":99.7}');
+  ('ev-kp-41',  'cl-kp-41',  1, TIMESTAMP '2026-07-28 09:00:00', 'met',     'Rolling 30d: 99.7%', NULL, '{"value":99.7}'),
+  ('ev-vu-71',  'cl-vu-71',  1, TIMESTAMP '2026-07-27 09:00:00', 'met',     '4 of 4 delivered on time', NULL, '{}'),
+  ('ev-ol-88',  'cl-ol-88',  1, TIMESTAMP '2026-07-20 09:00:00', 'met',     'Q2 benefit verified 94% vs 92% target', NULL, '{"value":94}'),
+  ('ev-pm-52',  'cl-pm-52',  1, TIMESTAMP '2026-07-28 08:00:00', 'met',     'Workday: 91% continuity', NULL, '{"value":91}'),
+  ('ev-sm-91',  'cl-sm-91',  1, TIMESTAMP '2026-07-28 09:06:00', 'at_risk', 'Edge telemetry agent v1.6.2 · advisory pending triage', NULL, '{}');
 
 -- Outcomes (full set for Northwind; two per other engagement) ------------------
 INSERT INTO core.outcome VALUES
@@ -193,12 +201,21 @@ INSERT INTO core.assignment VALUES
   ('as-nr-4', 'eng-nr', 'QA ×3',                    3, 3,   96,  NULL,           'do-nr-2'),
   ('as-nr-5', 'eng-nr', 'Site reliability ×2',      3, 2,   62,  'OPEN ROLE ×1', 'do-nr-3');
 
--- Work items (Jira) — Northwind epics ---------------------------------------------
+-- Work items (Jira) — linked to the delivery outcome they drive -------------------
 INSERT INTO core.work_item VALUES
-  ('wi-nr-482', 'eng-nr', 'NWR-482', 'epic', 'Depot telemetry rollout — wave 3',   'gate',        '§7.2', TIMESTAMP '2026-07-19 09:00:00'),
-  ('wi-nr-455', 'eng-nr', 'NWR-455', 'epic', 'Ingest Gateway remediation',          'in_progress', NULL,   NULL),
-  ('wi-nr-401', 'eng-nr', 'NWR-401', 'epic', 'Passenger app stability programme',   'in_progress', NULL,   TIMESTAMP '2026-07-26 09:00:00'),
-  ('wi-nr-388', 'eng-nr', 'NWR-388', 'epic', 'Legacy ticketing decommission 4–7',   'not_started', NULL,   TIMESTAMP '2026-07-14 09:00:00');
+  ('wi-nr-482', 'eng-nr', 'NWR-482', 'epic', 'Depot telemetry rollout — wave 3',   'gate',        '§7.2', TIMESTAMP '2026-07-19 09:00:00', 'do-nr-1'),
+  ('wi-nr-455', 'eng-nr', 'NWR-455', 'epic', 'Ingest Gateway remediation',          'in_progress', NULL,   NULL,                            'do-nr-3'),
+  ('wi-nr-401', 'eng-nr', 'NWR-401', 'epic', 'Passenger app stability programme',   'in_progress', NULL,   TIMESTAMP '2026-07-26 09:00:00', 'do-nr-2'),
+  ('wi-nr-388', 'eng-nr', 'NWR-388', 'epic', 'Legacy ticketing decommission 4–7',   'not_started', NULL,   TIMESTAMP '2026-07-14 09:00:00', 'do-nr-4'),
+  ('wi-nr-390', 'eng-nr', 'NWR-390', 'story','Ticketing benefit verification',      'done',        NULL,   NULL,                            NULL),
+  ('wi-nr-501', 'eng-nr', 'NWR-501', 'story','Gateway v4.1.3 canary in staging',    'in_progress', NULL,   NULL,                            'do-nr-3'),
+  ('wi-hh-482', 'eng-hh', 'HAL-482', 'epic', 'Phase 2 acceptance evidence pack',    'gate',        '§7.2', TIMESTAMP '2026-07-19 08:00:00', NULL),
+  ('wi-hh-501', 'eng-hh', 'HAL-501', 'epic', 'Ingest Gateway emergency patch',      'in_progress', NULL,   NULL,                            NULL),
+  ('wi-hh-460', 'eng-hh', 'HAL-460', 'epic', 'Records migration wave 4',            'in_progress', NULL,   TIMESTAMP '2026-07-24 09:00:00', NULL),
+  ('wi-kp-341', 'eng-kp', 'KP-341',  'epic', 'Trial site onboarding batch 5',       'in_progress', NULL,   NULL,                            NULL),
+  ('wi-kp-322', 'eng-kp', 'KP-322',  'story','GxP validation protocol prep',        'in_progress', NULL,   TIMESTAMP '2026-07-23 09:00:00', NULL),
+  ('wi-sm-201', 'eng-sm', 'SM-201',  'epic', 'Legacy data import rework',           'in_progress', NULL,   TIMESTAMP '2026-07-07 09:00:00', NULL),
+  ('wi-vu-140', 'eng-vu', 'VU-140',  'epic', 'Evening-peak gap investigation',      'in_progress', NULL,   TIMESTAMP '2026-07-21 09:00:00', NULL);
 
 -- Evidence — including the missing UAT pack that breaches §7.2 ---------------------
 INSERT INTO core.artifact_ref VALUES
@@ -284,7 +301,11 @@ INSERT INTO core.product VALUES
   ('pr-nr-tik',  'cust-nr', 'eng-nr', 'Ticketing Platform',      'platform',     'ga',    DATE '2025-06-20', 'svc-ig',  'https://github.example/northwind/ticketing',       'v2.4.0'),
   ('pr-hh-por',  'cust-hh', 'eng-hh', 'Clinician Portal',        'portal',       'ga',    DATE '2025-09-10', 'svc-ig',  'https://github.example/halcyon/clinician-portal',  'v5.1.1'),
   ('pr-kp-pipe', 'cust-kp', 'eng-kp', 'Trial Data Pipeline',     'data_pipeline','pilot', DATE '2026-05-01', 'svc-ig',  'https://github.example/kestrel/trial-pipeline',    'v0.4.0'),
-  ('pr-cb-pay',  'cust-cb', 'eng-cb', 'Payments API',            'api',          'ga',    DATE '2024-12-01', 'svc-ig',  'https://github.example/castellan/payments-api',    'v7.2.3');
+  ('pr-cb-pay',  'cust-cb', 'eng-cb', 'Payments API',            'api',          'ga',    DATE '2024-12-01', 'svc-ig',  'https://github.example/castellan/payments-api',    'v7.2.3'),
+  ('pr-vu-grid', 'cust-vu', 'eng-vu', 'Grid Telemetry Portal',   'portal',       'ga',    DATE '2025-08-14', 'svc-tel', 'https://github.example/verdant/grid-portal',       'v2.1.0'),
+  ('pr-sm-cmd',  'cust-sm', 'eng-sm', 'Maintenance Command',     'platform',     'ga',    DATE '2025-04-30', 'svc-tel', 'https://github.example/solent/maint-command',      'v1.6.0'),
+  ('pr-ol-dash', 'cust-ol', 'eng-ol', 'Fulfilment Dashboard',    'portal',       'ga',    DATE '2026-01-20', 'svc-wh',  'https://github.example/orrery/fulfilment-dash',    'v1.2.2'),
+  ('pr-pm-ops',  'cust-pm', 'eng-pm', 'Streaming Ops Console',   'platform',     'ga',    DATE '2025-10-05', 'svc-bus', 'https://github.example/pellucid/streaming-ops',    'v4.0.1');
 
 -- Product telemetry -----------------------------------------------------------------
 INSERT INTO core.telemetry VALUES
@@ -298,7 +319,51 @@ INSERT INTO core.telemetry VALUES
   ('tel-hh-por-up',  'pr-hh-por',  'uptime_pct',      99.87, '99.87%',       99.9, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
   ('tel-kp-pipe-er', 'pr-kp-pipe', 'error_rate_pct',  2.1,   '2.1% errors',  0.5,  TIMESTAMP '2026-07-25 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'KP-311/314/317'),
   ('tel-kp-pipe-up', 'pr-kp-pipe', 'uptime_pct',      99.7,  '99.7%',        99.5, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
-  ('tel-cb-pay-up',  'pr-cb-pay',  'uptime_pct',      99.98, '99.98%',       99.95,TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle');
+  ('tel-cb-pay-up',  'pr-cb-pay',  'uptime_pct',      99.98, '99.98%',       99.95,TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
+  ('tel-cb-pay-p99', 'pr-cb-pay',  'p99_latency_ms',  95,    '95 ms',        110,  TIMESTAMP '2026-07-21 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'APM weekly'),
+  ('tel-cb-pay-thr', 'pr-cb-pay',  'throughput_rps',  2400,  '2.4k rps',     NULL, TIMESTAMP '2026-07-21 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'derived','APM weekly'),
+  ('tel-vu-grid-fr', 'pr-vu-grid', 'uptime_pct',      99.6,  '99.6%',        99.5, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
+  ('tel-vu-grid-er', 'pr-vu-grid', 'error_rate_pct',  1.6,   '1.6% evening peak', 0.4, TIMESTAMP '2026-07-14 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm', 'VU-188'),
+  ('tel-sm-cmd-up',  'pr-sm-cmd',  'uptime_pct',      98.2,  '98.2%',        99.0, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
+  ('tel-sm-cmd-er',  'pr-sm-cmd',  'error_rate_pct',  3.4,   '3.4% after nightly batch', 0.8, TIMESTAMP '2026-07-19 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm', 'SM-097'),
+  ('tel-ol-dash-up', 'pr-ol-dash', 'uptime_pct',      99.9,  '99.9%',        99.5, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
+  ('tel-ol-dash-mau','pr-ol-dash', 'mau',             8400,  '8.4k MAU',     NULL, TIMESTAMP '2026-07-01 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'derived','analytics'),
+  ('tel-pm-ops-up',  'pr-pm-ops',  'uptime_pct',      99.95, '99.95%',       99.9, TIMESTAMP '2026-06-28 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'SLA cycle'),
+  ('tel-pm-ops-p99', 'pr-pm-ops',  'p99_latency_ms',  180,   '180 ms',       200,  TIMESTAMP '2026-07-21 00:00:00', TIMESTAMP '2026-07-28 00:00:00', 'jsm',   'APM weekly');
+
+-- Platform gaps blocking clients ------------------------------------------------
+INSERT INTO core.platform_gap VALUES
+  ('gap-1', 'Ingest Gateway v4.1.3 rollout wave', 'Patched gateway build is canaried but not yet GA across client environments; blocks CVE remediation and everything queued behind it.', 'in_progress', DATE '2026-08-10', 'Platform team'),
+  ('gap-2', 'Self-serve sandbox environments',    'No client-facing sandbox provisioning; pilots and client-side integration testing queue on platform engineers.', 'in_design',   DATE '2026-10-01', 'Platform team'),
+  ('gap-3', 'Bulk historical replay API',         'No way to replay historical event windows; incident investigations that need reprocessing stall.', 'backlog',     DATE '2026-09-15', 'Platform team');
+
+INSERT INTO core.platform_gap_customer VALUES
+  ('gap-1', 'cust-nr', 'Wave 3 capacity stays diverted until the patch ships; §6.3 clock at day 3 of 14.', 'NWR-455'),
+  ('gap-1', 'cust-hh', 'Uncapped availability credit exposure until patched; leads the wave.', 'HAL-501'),
+  ('gap-1', 'cust-kp', 'Patch forces GxP validation re-run; queued for the 02 Sep window.', 'KP-322'),
+  ('gap-2', 'cust-nr', 'Depot dashboard pilots waiting on environment access.', 'NW-214'),
+  ('gap-2', 'cust-kp', 'Batch ingest API feature request on hold — no sandbox to validate against.', 'KP-290'),
+  ('gap-3', 'cust-vu', 'Evening-peak gap investigation needs historical replay to reproduce.', 'VU-188'),
+  ('gap-3', 'cust-sm', 'Nightly batch sync fix cannot be verified without replaying failed windows.', 'SM-097');
+
+-- Definitions served from the lake so the console explains its own numbers -------
+INSERT INTO core.definition VALUES
+  ('velocity', 'How velocity is defined',
+   'Velocity is completed story points per sprint from Jira, scoped to the engagement. The trend compares the latest sprint to the mean of the six sprints before it. Falling velocity never alarms on its own — it only matters when it correlates with an at-risk outcome or clause, because activity is not the promise; outcomes are.',
+   'delta_pct = (latest_sprint_points − mean(previous 6 sprints)) / mean(previous 6 sprints)',
+   'core.measurement where metric = velocity_points (Jira sprint closes) → semantic.v_velocity_trend'),
+  ('delivery_risk', 'How delivery risk is defined',
+   'A risk is a journal entry linked to the client that is not closed. Risks are raised automatically by controls (clause breach, missing evidence, sustained over-utilisation, renewal runway, cross-customer correlation) or manually by the CSM. Every risk carries severity, an owner, a due date and links to the evidence that justifies it — a risk with no evidence link fails review.',
+   'open_risks = count(audit.journal_entry where state ≠ closed, joined via journal_entry_customer)',
+   'audit.journal_entry + journal_entry_link (clause refs, Jira/JSM keys, CVEs, money at stake)'),
+  ('blocked', 'How blocked is defined',
+   'Work is blocked when its Jira status-transition history shows no forward movement since blocked_since — it is derived from the source system, never self-reported. Blocked age is calendar days since that timestamp. Gate items are blocked work that also holds contractual evidence (§ refs), so they rank first.',
+   'blocked_days = days(now − blocked_since); status = blocked when blocked_since set and state ≠ done',
+   'core.work_item (Jira changelog) → semantic.v_client_workload'),
+  ('platform_gap', 'How platform gaps are defined',
+   'A platform gap is a capability the platform is missing that blocks client work — ours to fix, not the client''s. Gaps are ranked by reach (how many clients they block) and by what they hold up: a gap gating a contractual clause outranks one gating a feature request.',
+   'reach = count(distinct customers per gap); severity inherits from the worst thing it blocks',
+   'core.platform_gap + platform_gap_customer, linked to work items / tickets / feature requests');
 
 -- Impact evidence: why we think each customer is impacted by CVE-2026-1180,
 -- every row traceable to a source record -------------------------------------------

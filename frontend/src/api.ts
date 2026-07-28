@@ -362,6 +362,66 @@ export interface RagResponse {
   bubbling: BubblingIncident[]
 }
 
+export interface WorkloadRow {
+  source_key: string
+  source_system: 'jira' | 'jsm'
+  kind: string
+  title: string
+  status: string
+  gate_ref: string | null
+  blocked_days: number | null
+  delivery_outcome: string | null
+  priority: string | null
+}
+
+export interface PlatformGapRow {
+  name: string
+  description: string
+  status: string
+  eta: string | null
+  owner: string | null
+  blocking_note: string
+  linked_ref: string | null
+  reach: number
+}
+
+export interface DeliveryRisk {
+  risk_ref: string
+  severity: string
+  tone: Tone
+  title: string
+  state: string
+  owner: string
+  due_note: string | null
+  exposure_pennies: number | null
+  created_at: string
+}
+
+export interface DefinitionRow {
+  key: string
+  title: string
+  definition: string
+  formula: string | null
+  inputs: string | null
+}
+
+export interface DeliveryResponse {
+  who: {
+    customer_id: string
+    engagement_id: string
+    name: string
+    mark: string
+    sector: string | null
+    health_band: HealthBand
+    velocity_delta_pct: number | null
+  }
+  workload: WorkloadRow[]
+  delivery_outcomes: DeliveryOutcomeRow[]
+  gaps: PlatformGapRow[]
+  risks: DeliveryRisk[]
+  definitions: DefinitionRow[]
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path)
   if (!res.ok) throw new Error(`${path}: ${res.status} ${await res.text()}`)
@@ -375,6 +435,7 @@ export const api = {
   journal: () => get<{ entries: JournalEntry[] }>('/api/journal'),
   correlation: () => get<CorrelationResponse>('/api/correlation'),
   rag: () => get<RagResponse>('/api/rag'),
+  delivery: (id: string) => get<DeliveryResponse>(`/api/customers/${id}/delivery`),
 }
 
 // Formatting helpers ---------------------------------------------------------

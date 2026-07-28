@@ -144,7 +144,37 @@ CREATE TABLE IF NOT EXISTS core.work_item (
   title         VARCHAR NOT NULL,
   state         VARCHAR NOT NULL,           -- not_started|in_progress|gate|done
   gate_ref      VARCHAR,                    -- clause ref it gates, if any
-  blocked_since TIMESTAMP
+  blocked_since TIMESTAMP,
+  delivery_outcome_id VARCHAR               -- delivery outcome this work drives
+);
+
+-- Platform gaps: capabilities the PLATFORM is missing or hasn't shipped yet
+-- that block client work. Distinct from client risks — a gap is ours to fix,
+-- and one gap can block many clients (that reach is what gets it prioritised).
+CREATE TABLE IF NOT EXISTS core.platform_gap (
+  id          VARCHAR NOT NULL,
+  name        VARCHAR NOT NULL,
+  description VARCHAR NOT NULL,
+  status      VARCHAR NOT NULL,             -- backlog|in_design|in_progress|done
+  eta         DATE,
+  owner       VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS core.platform_gap_customer (
+  gap_id        VARCHAR NOT NULL,
+  customer_id   VARCHAR NOT NULL,
+  blocking_note VARCHAR NOT NULL,           -- what it blocks for THIS client
+  linked_ref    VARCHAR                     -- work item / ticket / FR it blocks
+);
+
+-- Definitions of derived measures, served from the lake so the console can
+-- explain its own numbers. One row per definition key.
+CREATE TABLE IF NOT EXISTS core.definition (
+  key        VARCHAR NOT NULL,              -- 'velocity', 'delivery_risk', …
+  title      VARCHAR NOT NULL,
+  definition VARCHAR NOT NULL,              -- prose a CSM can read to a client
+  formula    VARCHAR,                       -- the computable rule
+  inputs     VARCHAR                        -- where the numbers come from
 );
 
 -- Delivery outcomes: what the team's capacity is actually driving. Distinct
@@ -502,6 +532,27 @@ LEFT JOIN (
   WHERE je.state <> 'closed'
   GROUP BY jc.customer_id
 ) j ON j.customer_id = cu.id;
+
+-- Client workload: EVERYTHING in flight for a client, grouped by status —
+-- Jira delivery work and JSM service tickets in one list. Deliberately not a
+-- sprint view: the client conversation is "what state is my work in", not
+-- "which sprint is it parked in". Blocked is derived, never self-reported.
+CREATE OR REPLACE VIEW semantic.v_client_workload AS
+SELECT e.customer_id, w.source_key, 'jira' AS source_system, w.kind, w.title,
+       CASE WHEN w.blocked_since IS NOT NULL AND w.state <> 'done' THEN 'blocked'
+            ELSE w.state END AS status,
+       w.gate_ref,
+       CASE WHEN w.blocked_since IS NULL THEN NULL
+            ELSE DATE_DIFF('day', CAST(w.blocked_since AS DATE), CURRENT_DATE) END AS blocked_days,
+       d.name AS delivery_outcome,
+       NULL AS priority
+FROM core.work_item w
+JOIN core.engagement e ON e.id = w.engagement_id
+LEFT JOIN core.delivery_outcome d ON d.id = w.delivery_outcome_id
+UNION ALL
+SELECT t.customer_id, t.source_key, 'jsm', COALESCE(t.request_type, 'request'), t.summary,
+       t.status, NULL, NULL, NULL, t.priority
+FROM core.ticket t;
 
 -- RAG movement: live signal vs most recent snapshot — the deltas are the
 -- conversation starters ("what changed this week").
