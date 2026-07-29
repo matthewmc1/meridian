@@ -3,6 +3,7 @@ import {
   api, bandLabel, bandTone, money, shortDate, verdictTone, ago,
   type Customer360Response,
 } from '../api'
+import { useThr } from '../defs'
 
 export default function Customer360({
   customerId, onBack,
@@ -13,6 +14,9 @@ export default function Customer360({
 }) {
   const [data, setData] = useState<Customer360Response | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const thr = useThr()
+  const uCrit = thr('utilisation', 'crit', 105), uOver = thr('utilisation', 'over', 100), uUnder = thr('utilisation', 'under', 75)
+  const mWarn = thr('outcome_index', 'warn', 75)
 
   useEffect(() => {
     if (!customerId) return
@@ -51,10 +55,18 @@ export default function Customer360({
             </div>
             <div className="mono" style={{ display: 'flex', gap: 22, fontSize: 11.5, color: 'var(--muted)', flexWrap: 'wrap' }}>
               <span>{h.sector}</span>
-              <span>{h.instrument_ref}</span>
+              <span>{h.instrument_ref}{h.instrument_count && h.instrument_count > 1 ? ` (${h.instrument_count})` : ''}</span>
               {h.csm_name && <span>CSM {h.csm_name}</span>}
               {h.delivery_lead && <span>Delivery lead {h.delivery_lead}</span>}
               {h.renewal_date && <span>Renews {shortDate(h.renewal_date)}</span>}
+              {h.csat_latest != null && (
+                <span className={h.csat_delta != null && h.csat_delta <= -0.5 ? 'tone-crit' : ''}>
+                  CSAT {h.csat_latest.toFixed(1)}{h.csat_delta != null && h.csat_delta !== 0 ? ` (${h.csat_delta > 0 ? '+' : ''}${h.csat_delta})` : ''}
+                </span>
+              )}
+              {(h.sponsor_status === 'departing' || h.sponsor_status === 'departed') && (
+                <span className="tone-crit">Sponsor {h.sponsor_status}</span>
+              )}
             </div>
           </div>
         </div>
@@ -68,12 +80,12 @@ export default function Customer360({
             sub={h.gates_total && h.gates_passed !== h.gates_total ? 'gate evidence outstanding' : 'all gates verified'} />
           <Tile label="Outcome index" src="derived"
             value={h.outcome_index != null ? String(Math.round(h.outcome_index)) : '—'} unit="/100"
-            tone={h.outcome_index != null && h.outcome_index < 75 ? 'warn' : 'ink'}
+            tone={h.outcome_index != null && h.outcome_index < mWarn ? 'warn' : 'ink'}
             sub="mean attainment across outcomes" />
           <Tile label="Capacity" src="workday"
-            value={h.utilisation_pct != null ? `${h.utilisation_pct}%` : '—'} unit="util"
-            tone={h.utilisation_pct != null && (h.utilisation_pct > 100 || h.utilisation_pct < 75) ? 'warn' : 'ink'}
-            sub={h.planned_fte ? `${h.assigned_fte ?? 0} of ${h.planned_fte} FTE assigned` : '—'} />
+            value={h.utilisation_pct != null ? `${h.utilisation_pct}%` : 'no data'} unit="util"
+            tone={h.utilisation_pct == null ? 'warn' : (h.utilisation_pct > uOver || h.utilisation_pct < uUnder) ? 'warn' : 'ink'}
+            sub={h.planned_fte ? `${h.assigned_fte ?? 0} of ${h.planned_fte} FTE assigned` : 'no assignments reported'} />
           <Tile label="Margin" src="workday"
             value={h.margin_pct != null ? `${h.margin_pct}%` : '—'} unit="actual"
             tone={h.margin_pct != null && h.margin_pct < 15 ? 'crit' : 'ink'} sub="latest Workday period" />
@@ -100,6 +112,10 @@ export default function Customer360({
                   <div className="bar-track" style={{ flex: 1, height: 5 }}>
                     <div className="bar-fill" style={{ width: `${Math.round(o.attainment_pct)}%`, background: `var(--${t})` }} />
                   </div>
+                  {o.unaligned && (
+                    <span className="pill crit" title="At-risk outcome with zero committed FTE behind it">0 FTE</span>
+                  )}
+                  {o.is_critical && <span className="pill crit">critical</span>}
                   <span className={`pill ${t}`}>{o.status.replace('_', ' ')}</span>
                   <span className="src-badge">{o.measure_source}</span>
                 </div>
@@ -125,6 +141,10 @@ export default function Customer360({
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>{c.clause_ref}</span>
                     <span style={{ font: "500 12.5px/1.3 'Instrument Sans',sans-serif" }}>{c.clause_name}</span>
+                    <span className="src-badge" title={c.method === 'evaluated' ? 'produced by a live control' : 'seeded fixture — not a live control yet'}
+                      style={c.method === 'evaluated' ? { background: 'var(--goodBg)', color: 'var(--good)' } : undefined}>
+                      {c.method === 'evaluated' ? 'live' : 'seeded'}
+                    </span>
                   </div>
                   <div style={{ font: "400 11px/1.45 'Instrument Sans',sans-serif", color: 'var(--muted)', marginTop: 3 }}>{c.test_description}</div>
                   {c.evidence_note && (
@@ -148,7 +168,7 @@ export default function Customer360({
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 9, borderBottom: '1px solid var(--line2)' }}>
             {data.team.length === 0 && <Empty note="No assignments ingested for this engagement yet." />}
             {data.team.map((p) => {
-              const t = p.utilisation_pct > 105 ? 'crit' : p.utilisation_pct > 100 || p.utilisation_pct < 75 ? 'warn' : 'good'
+              const t = p.utilisation_pct > uCrit ? 'crit' : p.utilisation_pct > uOver || p.utilisation_pct < uUnder ? 'warn' : 'good'
               return (
                 <div key={p.role} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ font: "400 11.5px/1 'Instrument Sans',sans-serif", color: 'var(--ink2)', width: 150, flex: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.role}</span>
@@ -179,7 +199,9 @@ export default function Customer360({
                     <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flex: 'none' }}>{d.committed_fte} FTE</span>
                   )}
                   <span className="mono" style={{ fontSize: 9.5, color: 'var(--faint)', flex: 'none', maxWidth: 170, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {d.supports_contracted ? `supports: ${d.supports_contracted}` : 'operational'}
+                    {d.supports_contracted ? `supports: ${d.supports_contracted}`
+                      : d.defends_clause ? `defends: ${d.defends_clause}`
+                      : 'operational'}
                   </span>
                 </div>
               )
@@ -209,6 +231,32 @@ export default function Customer360({
                   {e.blocked_days != null ? `${e.blocked_days} d blocked` : '—'}
                 </span>
                 <span className={`pill ${st}`}>{e.state.replace('_', ' ')}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="panel" style={{ gridColumn: '1 / -1' }}>
+          <div className="panel-head">
+            Gate runway <span className="panel-note">forward-looking — a gate at risk before the date, not after</span>
+          </div>
+          {data.gates.length === 0 && <Empty note="No forward milestone gates scheduled." />}
+          {data.gates.map((g) => {
+            const overdue = g.days_to_gate < 0
+            const t = overdue || (!g.evidence_ready && g.days_to_gate <= 10) ? 'crit'
+              : !g.evidence_ready && g.days_to_gate <= 30 ? 'warn' : 'good'
+            return (
+              <div key={g.name} style={{ padding: '10px 14px', borderBottom: '1px solid var(--line2)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span className={`mono tone-${t}`} style={{ fontSize: 13, fontWeight: 600, width: 70, flex: 'none' }}>
+                  {overdue ? `${-g.days_to_gate}d over` : `${g.days_to_gate}d`}
+                </span>
+                <span style={{ font: "500 12.5px/1.3 'Instrument Sans',sans-serif", flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
+                {g.clause_ref && <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{g.clause_ref}</span>}
+                <span className={`pill ${g.evidence_ready ? 'good' : 'crit'}`}>
+                  {g.evidence_ready ? 'evidence ready' : g.evidence_state === 'missing' || !g.evidence_state ? 'evidence missing' : `evidence ${g.evidence_state}`}
+                </span>
+                <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)', width: 96, textAlign: 'right', flex: 'none' }}>{shortDate(g.gate_date)}</span>
+                {g.amount_pennies != null && <span className="mono" style={{ fontSize: 11, fontWeight: 500, width: 60, textAlign: 'right', flex: 'none' }}>{money(g.amount_pennies)}</span>}
               </div>
             )
           })}

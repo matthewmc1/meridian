@@ -175,6 +175,44 @@ CSM — contracted-outcome attainment with provenance. That's the honest core to
 
 ---
 
+## 3a · Remediation & adversarial re-review (29 Jul 2026)
+
+All twelve converged findings were implemented across the data layer, backend and
+frontend, then **re-attacked by the same four personas plus a regression critic** (workflow
+`adversarial-reverify`, high effort, against the changed code + live API). Result: **23 of the
+original findings confirmed closed**, with the reviewers surfacing 9 new latent issues and 4
+partials — the load-bearing ones were then fixed in a second pass:
+
+**Closed (verified in code + API):** single `v_exposure` definition (remedy vs ACV-under-watch,
+deduped, uncapped flagged); client-voice layer (CSAT trend, stakeholders, silence) — Solent's
+7.8→6.1 collapse now visible; `v_util_streak` (5-week over-util is derived, not prose); fail-visible
+band (no COALESCE-to-100, `cannot_evaluate` escalates, `missing_signals` surfaced); write path
+(raise → move → decide, append-only `journal_movement` + `decision`); snapshot writer + staleness;
+decision queue sorted by `due_at`; client-agreed outcome floors (99.1% now `at_risk`); CSM cut;
+QBR brief + window-lint; forward gate runway; `v_outcome_coverage` unaligned flag; 15 definitions
+served from the lake with thresholds the UI consumes; `method='evaluated'` badges + a real §7.2
+evaluator on boot; provenance rows; `v_engagement_contract` aggregation.
+
+**New issues found by the re-review and fixed in the second pass:**
+- **`v_exposure` double-counted remedy per engagement** (critic) — re-grained to one row per
+  customer via aggregation, so a multi-SOW customer can't inflate the portfolio KPI.
+- **Correlation "ACV exposed £13m"** was a third loss-headline contradicting the exposure
+  definition — relabelled "ACV in blast radius · scope, not loss" (view + banner).
+- **`gates_at_risk` dropped overdue gates** — KPI now counts `days_to_gate ≤ 30` including overdue.
+- **RAG baseline could collapse to one day** on consecutive-day boots — baseline is now the latest
+  snapshot ≥6 days old (true weekly line), and stale baselines **hold** the deltas (not just warn),
+  threshold read from `core.definition rag_snapshot`.
+- **Sponsor aggregation** used column-wise `MAX` (could pair one person's status with another's
+  sentiment) — now selects the single most-concerning sponsor row.
+- **`missing_signals` never rendered** — capacity cell now shows "margin: no data" instead of a
+  silent blank; Customer 360 util/index thresholds read from the lake via `useThr`.
+- **State-move endpoint had no UI** — Journal entries now have state-advance controls.
+
+**Known partials left as follow-ons (documented, not silently dropped):** staging provenance rows
+exist but aren't yet wired to a UI drill-through (badges still resolve conceptually, not by click);
+freshness dots still read fixture `lag_seconds` rather than computed age; `useThr` now covers
+Signal + RAG + Customer 360 but not every colour decision in every view.
+
 ## 4 · The principle the review keeps returning to
 
 Every reviewer independently found the same pattern: **the platform documents rules it does not

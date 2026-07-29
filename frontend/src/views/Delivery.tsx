@@ -91,7 +91,9 @@ export default function Delivery({
                   {d.target_date && <span className="mono" style={{ fontSize: 10, color: 'var(--faint)' }}>target {shortDate(d.target_date)}</span>}
                 </div>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--faint)', marginTop: 4 }}>
-                  {d.supports_contracted ? `supports contracted outcome: ${d.supports_contracted}` : 'operational — supports no contracted outcome directly'}
+                  {d.supports_contracted ? `supports contracted outcome: ${d.supports_contracted}`
+                    : d.defends_clause ? `defends clause ${d.defends_clause}`
+                    : 'operational — supports no contracted outcome directly'}
                 </div>
               </div>
             )
@@ -125,10 +127,50 @@ export default function Delivery({
         </div>
       </div>
 
+      <div className="grid-2" style={{ marginBottom: 10 }}>
+        <div className="panel">
+          <div className="panel-head">
+            Outcome coverage
+            <span className="panel-note">unmet outcome with 0 FTE = unaligned</span>
+          </div>
+          {data.coverage.map((c) => {
+            const st = c.outcome_status === 'met' ? 'good' : c.outcome_status === 'behind' ? 'warn' : c.outcome_status === 'at_risk' ? 'crit' : 'muted'
+            return (
+              <div key={c.outcome_name} style={{ padding: '9px 14px', borderBottom: '1px solid var(--line2)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className={`pill ${st}`}>{c.outcome_status.replace('_', ' ')}</span>
+                <span style={{ font: "400 12px/1.3 'Instrument Sans',sans-serif", flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.outcome_name}</span>
+                <span className="mono" style={{ fontSize: 10.5, color: c.committed_fte === 0 && c.unaligned ? 'var(--crit)' : 'var(--muted)' }}>{c.committed_fte} FTE</span>
+                {c.unaligned && <span className="pill crit" title="At-risk outcome with no committed capacity behind it">unaligned</span>}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            Gate runway <span className="panel-note">pre-mortem: gate at risk before the date</span>
+          </div>
+          {data.gates.length === 0 && (
+            <div style={{ padding: 14, font: "400 12px/1.5 'Instrument Sans',sans-serif", color: 'var(--faint)' }}>No forward gates scheduled.</div>
+          )}
+          {data.gates.map((g) => {
+            const overdue = g.days_to_gate < 0
+            const t = overdue || (!g.evidence_ready && g.days_to_gate <= 10) ? 'crit' : !g.evidence_ready && g.days_to_gate <= 30 ? 'warn' : 'good'
+            return (
+              <div key={g.name} style={{ padding: '9px 14px', borderBottom: '1px solid var(--line2)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className={`mono tone-${t}`} style={{ fontSize: 12.5, fontWeight: 600, width: 62, flex: 'none' }}>{overdue ? `${-g.days_to_gate}d over` : `${g.days_to_gate}d`}</span>
+                <span style={{ font: "400 12px/1.3 'Instrument Sans',sans-serif", flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
+                <span className={`pill ${g.evidence_ready ? 'good' : 'crit'}`}>{g.evidence_ready ? 'ready' : 'evidence missing'}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="panel" style={{ marginBottom: 10 }}>
         <div className="panel-head">
           Platform gaps blocking this client
-          <span className="panel-note">ours to fix — ranked by how many clients each gap blocks</span>
+          <span className="panel-note">ours to fix — ranked by worst thing blocked, then reach</span>
         </div>
         {data.gaps.length === 0 && (
           <div style={{ padding: 14, font: "400 12px/1.5 'Instrument Sans',sans-serif", color: 'var(--faint)' }}>
@@ -137,11 +179,15 @@ export default function Delivery({
         )}
         {data.gaps.map((g) => (
           <div key={g.name} style={{ padding: '11px 14px', borderBottom: '1px solid var(--line2)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span className={`pill ${g.status === 'in_progress' ? 'warn' : g.status === 'done' ? 'good' : 'muted'}`}>{g.status.replace('_', ' ')}</span>
+            <span className={`pill ${g.worst_blocks_kind === 'clause' ? 'crit' : g.worst_blocks_kind === 'gate' ? 'crit' : g.worst_blocks_kind === 'incident' ? 'warn' : 'muted'}`}>
+              {g.worst_blocks_kind.replace('_', ' ')}
+            </span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ font: "500 12.5px/1.3 'Instrument Sans',sans-serif" }}>{g.name}</div>
+              <div style={{ font: "500 12.5px/1.3 'Instrument Sans',sans-serif" }}>{g.name}
+                <span className="mono" style={{ fontSize: 9.5, color: 'var(--faint)', marginLeft: 8 }}>{g.status.replace('_', ' ')}</span>
+              </div>
               <div style={{ font: "400 11.5px/1.45 'Instrument Sans',sans-serif", color: 'var(--muted)', marginTop: 3 }}>
-                <strong style={{ color: 'var(--ink2)', fontWeight: 500 }}>Blocks here:</strong> {g.blocking_note}
+                <strong style={{ color: 'var(--ink2)', fontWeight: 500 }}>Blocks here ({g.blocks_kind.replace('_', ' ')}):</strong> {g.blocking_note}
               </div>
             </div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--faint)', textAlign: 'right', flex: 'none' }}>

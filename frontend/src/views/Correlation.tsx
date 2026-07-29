@@ -59,7 +59,7 @@ export default function Correlation({ onOpenCustomer }: { onOpenCustomer: (id: s
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 9, marginBottom: 14 }}>
         <Kpi label="Customers impacted" value={String(impacted.length)} sub={impacted.map((a) => a.customer_name).join(' · ') || '—'} tone="crit" />
         <Kpi label="Potentially impacted" value={String(potential.length)} sub={potential.map((a) => a.customer_name).join(' · ') || '—'} tone="warn" />
-        <Kpi label="ACV exposed" value={money(exposed)} sub="impacted + potential" tone="crit" />
+        <Kpi label="ACV in blast radius" value={money(exposed)} sub="affected accounts · scope, not loss" tone="warn" />
         <Kpi label="Clauses engaged" value={String(clausesEngaged)} sub="security remediation obligations" tone="warn" />
       </div>
 

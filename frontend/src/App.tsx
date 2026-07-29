@@ -6,19 +6,30 @@ import Journal from './views/Journal'
 import Correlation from './views/Correlation'
 import Rag from './views/Rag'
 import Delivery from './views/Delivery'
+import Qbr from './views/Qbr'
+import { DefsProvider } from './defs'
 
-export type View = 'signal' | 'rag' | 'customer' | 'delivery' | 'correlate' | 'journal'
+export type View = 'signal' | 'rag' | 'customer' | 'delivery' | 'correlate' | 'journal' | 'qbr'
 
 const NAV: { view: View; label: string }[] = [
   { view: 'signal', label: 'Customer signal' },
   { view: 'rag', label: 'RAG board' },
   { view: 'customer', label: 'Customer 360' },
   { view: 'delivery', label: 'Delivery & risk' },
+  { view: 'qbr', label: 'QBR brief' },
   { view: 'correlate', label: 'Correlation' },
   { view: 'journal', label: 'Risk journal' },
 ]
 
 export default function App() {
+  return (
+    <DefsProvider>
+      <AppInner />
+    </DefsProvider>
+  )
+}
+
+function AppInner() {
   const [view, setView] = useState<View>('signal')
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -99,7 +110,7 @@ export default function App() {
               <span className="banner-label">Customer signal</span>
               <span className="banner-text">
                 {corr.vulnerability.ref} · {corr.vulnerability.service_name} — {impacted.length}{' '}
-                clients, {money(exposedAcv)} ACV exposed
+                clients, {money(exposedAcv)} ACV in blast radius
               </span>
               <button className="banner-action" onClick={() => setView('correlate')}>
                 TRIAGE →
@@ -124,6 +135,7 @@ export default function App() {
             <Customer360 customerId={customerId} onBack={() => setView('signal')} onPick={openCustomer} />
           )}
           {view === 'delivery' && <Delivery customerId={customerId} onPick={setCustomerId} />}
+          {view === 'qbr' && <Qbr customerId={customerId} onPick={setCustomerId} />}
           {view === 'correlate' && <Correlation onOpenCustomer={openCustomer} />}
           {view === 'journal' && <Journal />}
         </main>

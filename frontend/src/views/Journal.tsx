@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
 import { api, shortDate, type JournalEntry } from '../api'
 
+const NEXT_STATES = ['Watch', 'Breach', 'Escalated', 'Closed']
+
 export default function Journal() {
   const [entries, setEntries] = useState<JournalEntry[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'crit' | 'open'>('all')
+  const [nonce, setNonce] = useState(0)
 
   useEffect(() => {
     api.journal().then((d) => setEntries(d.entries)).catch((e) => setErr(String(e)))
-  }, [])
+  }, [nonce])
+
+  const move = async (journalId: string, toState: string) => {
+    await api.moveRisk({ journal_id: journalId, to_state: toState, note: `Moved to ${toState}`, actor: 'P. Raman' })
+    setNonce((n) => n + 1)
+  }
 
   if (err) return <div className="error-box">Data layer unreachable: {err}</div>
   if (!entries) return <div className="loading">querying journal…</div>
@@ -59,14 +67,38 @@ export default function Journal() {
               </div>
             </div>
             <div style={{ width: 214, flex: 'none', padding: 14, borderLeft: '1px solid var(--line2)' }}>
-              <div className="foot-heading">Movement</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                <span className="pill muted">{j.movement_from}</span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>→</span>
-                <span className={`pill ${j.tone}`}>{j.movement_to}</span>
+              <div className="foot-heading" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Movement log</span>
+                <span style={{ color: j.origin === 'manual' ? 'var(--accent)' : 'var(--faint)' }}>{j.origin}</span>
               </div>
+              {j.movements.length > 0 ? (
+                <div style={{ margin: '4px 0 10px' }}>
+                  {j.movements.map((m) => (
+                    <div key={m.seq} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span className="mono" style={{ fontSize: 9, color: 'var(--faint)', width: 12 }}>{m.seq}</span>
+                      <span className="mono" style={{ fontSize: 9.5, color: 'var(--muted)' }}>{m.from_state ?? '·'} → {m.to_state}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '6px 0 10px' }}>
+                  <span className="pill muted">{j.movement_from}</span>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>→</span>
+                  <span className={`pill ${j.tone}`}>{j.movement_to}</span>
+                </div>
+              )}
               <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.5 }}>Owner {j.owner}</div>
               {j.due_note && <div className="mono" style={{ fontSize: 10.5, color: 'var(--faint)', lineHeight: 1.5 }}>{j.due_note}</div>}
+              {j.state !== 'closed' && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                  {NEXT_STATES.filter((st) => st !== j.movement_to).map((st) => (
+                    <button key={st} onClick={() => move(j.id, st)}
+                      style={{ height: 20, padding: '0 6px', borderRadius: 3, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--muted)', font: "500 9px/1 'IBM Plex Mono',monospace", cursor: 'pointer' }}>
+                      → {st}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}

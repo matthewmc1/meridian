@@ -77,14 +77,30 @@ func main() {
 	}
 
 	s := &server{db: db}
+
+	// Startup jobs: run one REAL control (milestone-gate evaluator writes
+	// method='evaluated' verdicts) and keep the RAG snapshot baseline fresh.
+	if err := s.evaluateMilestoneGates(); err != nil {
+		log.Printf("gate evaluator: %v", err)
+	}
+	if err := s.writeSnapshotIfStale(); err != nil {
+		log.Printf("snapshot writer: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("GET /api/definitions", s.definitions)
 	mux.HandleFunc("GET /api/signal", s.signal)
 	mux.HandleFunc("GET /api/customers/{id}", s.customer360)
 	mux.HandleFunc("GET /api/customers/{id}/delivery", s.delivery)
 	mux.HandleFunc("GET /api/journal", s.journal)
 	mux.HandleFunc("GET /api/correlation", s.correlation)
 	mux.HandleFunc("GET /api/rag", s.rag)
+	mux.HandleFunc("GET /api/qbr/{id}", s.qbr)
+	// Write path — the decision loop closes here.
+	mux.HandleFunc("POST /api/journal", s.raiseRisk)
+	mux.HandleFunc("POST /api/journal/move", s.moveRisk)
+	mux.HandleFunc("POST /api/decisions", s.decide)
 
 	addr := env("MERIDIAN_ADDR", ":8787")
 	log.Printf("meridian api on %s (db=%s)", addr, env("MERIDIAN_DB", "meridian.duckdb"))

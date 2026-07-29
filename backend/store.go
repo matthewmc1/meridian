@@ -59,6 +59,12 @@ func normalize(v any) any {
 	}
 }
 
+// exec runs a statement that returns no rows (INSERT/UPDATE).
+func (s *server) exec(query string, args ...any) error {
+	_, err := s.db.Exec(query, args...)
+	return err
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

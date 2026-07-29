@@ -16,22 +16,40 @@ func (s *server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "sources": sources})
 }
 
-// GET /api/signal — the Customer signal view: KPI strip, ranked customer
-// table, decision queue and renewal runway. Everything is computed in the
-// semantic layer; this handler only shapes it.
+// GET /api/definitions — every derived concept with its prose, formula, inputs
+// and thresholds, served from core.definition so the console reads its cutoffs
+// from ONE place instead of hard-coding them per view.
+func (s *server) definitions(w http.ResponseWriter, r *http.Request) {
+	defs, err := s.queryRows(`
+		SELECT key, title, definition, formula, inputs, thresholds
+		FROM core.definition ORDER BY key`)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"definitions": defs})
+}
+
+// GET /api/signal — Customer signal. KPI strip, ranked table (with CSM), a
+// decision queue sorted by urgency, exposure from the single v_exposure source,
+// renewal runway with notice-window awareness, and client-voice leading signals.
 func (s *server) signal(w http.ResponseWriter, r *http.Request) {
 	customers, err := s.queryRows(`
-		SELECT customer_id, engagement_id, name, mark, sector, health_band,
-		       outcomes_on_track, outcomes_total,
-		       clause_breaches, clauses_at_risk, clauses_total,
-		       utilisation_pct, margin_pct, velocity_delta_pct,
-		       vehicle_label, CAST(acv_pennies AS BIGINT) AS acv_pennies,
-		       renewal_date, renewal_days, delta_label,
-		       CAST(open_risks AS BIGINT) AS open_risks,
-		       CAST(crit_risks AS BIGINT) AS crit_risks
-		FROM semantic.v_customer_signal
-		ORDER BY CASE health_band WHEN 'at_risk' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END,
-		         acv_pennies DESC`)
+		SELECT cs.customer_id, cs.engagement_id, cs.name, cs.mark, cs.sector, cs.csm_name,
+		       cs.health_band, cs.outcomes_on_track, cs.outcomes_at_risk, cs.outcomes_total,
+		       cs.clause_breaches, cs.clauses_at_risk, cs.clauses_cannot_eval, cs.clauses_total,
+		       cs.utilisation_pct, cs.margin_pct, cs.util_weeks_over_100, cs.velocity_delta_pct,
+		       cs.missing_signals, cs.vehicle_label, CAST(cs.acv_pennies AS BIGINT) AS acv_pennies,
+		       cs.renewal_date, cs.renewal_days, cs.notice_days, cs.opportunity_open, cs.delta_label,
+		       CAST(cs.instrument_count AS BIGINT) AS instrument_count,
+		       CAST(cs.open_risks AS BIGINT) AS open_risks, CAST(cs.crit_risks AS BIGINT) AS crit_risks,
+		       CAST(x.remedy_pennies AS BIGINT) AS remedy_pennies, x.has_uncapped,
+		       cv.csat_latest, cv.csat_delta, cv.days_since_client_activity, cv.sponsor_status
+		FROM semantic.v_customer_signal cs
+		LEFT JOIN semantic.v_exposure x ON x.customer_id = cs.customer_id
+		LEFT JOIN semantic.v_client_voice cv ON cv.customer_id = cs.customer_id
+		ORDER BY CASE cs.health_band WHEN 'at_risk' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END,
+		         cs.acv_pennies DESC`)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -48,52 +66,64 @@ func (s *server) signal(w http.ResponseWriter, r *http.Request) {
 	}
 	byEng := map[any][]any{}
 	for _, row := range sparks {
-		id := row["engagement_id"]
-		byEng[id] = append(byEng[id], row["value"])
+		byEng[row["engagement_id"]] = append(byEng[row["engagement_id"]], row["value"])
 	}
 	for _, c := range customers {
 		c["velocity_spark"] = orEmpty(byEng[c["engagement_id"]])
 	}
 
+	// KPIs. Exposure is the single v_exposure definition, not a whole-ACV binary
+	// sum; capacity gap carries its coverage so a 1-of-8 number can't masquerade
+	// as portfolio truth.
 	kpis, err := s.queryRows(`
 		SELECT
-		  (SELECT CAST(SUM(acv_pennies) AS BIGINT) FROM semantic.v_customer_signal)      AS total_acv_pennies,
-		  (SELECT CAST(COUNT(*) AS BIGINT) FROM semantic.v_customer_signal)              AS engagements,
+		  (SELECT CAST(SUM(acv_pennies) AS BIGINT) FROM semantic.v_customer_signal)       AS total_acv_pennies,
+		  (SELECT CAST(COUNT(*) AS BIGINT) FROM semantic.v_customer_signal)               AS engagements,
 		  (SELECT CAST(SUM(outcomes_on_track) AS BIGINT) FROM semantic.v_customer_signal) AS outcomes_on_track,
-		  (SELECT CAST(SUM(outcomes_total) AS BIGINT) FROM semantic.v_customer_signal)   AS outcomes_total,
-		  (SELECT CAST(SUM(clause_breaches) AS BIGINT) FROM semantic.v_customer_signal)  AS clause_breaches,
-		  (SELECT CAST(SUM(clauses_at_risk) AS BIGINT) FROM semantic.v_customer_signal)  AS clauses_at_risk,
-		  (SELECT CAST(SUM(acv_pennies) AS BIGINT) FROM semantic.v_customer_signal
-		     WHERE clause_breaches > 0 OR crit_risks > 0)                                AS exposure_pennies,
-		  (SELECT CAST(SUM(planned_fte - assigned_fte) AS DOUBLE) FROM core.assignment
-		     WHERE planned_fte > assigned_fte)                                           AS capacity_gap_fte,
+		  (SELECT CAST(SUM(outcomes_total) AS BIGINT) FROM semantic.v_customer_signal)    AS outcomes_total,
+		  (SELECT CAST(SUM(clause_breaches) AS BIGINT) FROM semantic.v_customer_signal)   AS clause_breaches,
+		  (SELECT CAST(SUM(clauses_at_risk) AS BIGINT) FROM semantic.v_customer_signal)   AS clauses_at_risk,
+		  (SELECT CAST(SUM(remedy_pennies) AS BIGINT) FROM semantic.v_exposure)           AS remedy_pennies,
+		  (SELECT CAST(SUM(acv_under_watch_pennies) AS BIGINT) FROM semantic.v_exposure)  AS acv_under_watch_pennies,
+		  (SELECT BOOL_OR(has_uncapped) FROM semantic.v_exposure)                         AS any_uncapped,
+		  (SELECT CAST(COALESCE(SUM(planned_fte - assigned_fte), 0) AS DOUBLE) FROM core.assignment
+		     WHERE planned_fte > assigned_fte)                                            AS capacity_gap_fte,
+		  (SELECT CAST(COUNT(DISTINCT engagement_id) AS BIGINT) FROM core.assignment)     AS engagements_with_assignments,
+		  (SELECT CAST(COUNT(*) AS BIGINT) FROM semantic.v_customer_signal)               AS engagements_total,
 		  (SELECT CAST(COUNT(*) AS BIGINT) FROM semantic.v_customer_signal
-		     WHERE renewal_days IS NOT NULL AND renewal_days <= 90)                      AS renewals_90d`)
+		     WHERE renewal_days IS NOT NULL AND renewal_days <= 90)                       AS renewals_90d,
+		  (SELECT CAST(COUNT(*) AS BIGINT) FROM semantic.v_gate_runway
+		     WHERE days_to_gate <= 30 AND NOT evidence_ready)                             AS gates_at_risk`)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
+	// Decision queue: sorted by urgency (overdue / soonest due first), NOT money,
+	// so a hard-dated make-or-break gate can't hide beneath a bigger number.
 	decisions, err := s.queryRows(`
-		SELECT je.risk_ref, je.severity, je.tone, je.title, je.scope_label, je.owner,
-		       je.due_note, CAST(je.exposure_pennies AS BIGINT) AS exposure_pennies,
+		SELECT je.id AS journal_id, je.risk_ref, je.severity, je.tone, je.title, je.scope_label, je.owner,
+		       je.due_note, je.due_at, je.origin,
+		       CASE WHEN je.due_at IS NOT NULL AND je.due_at < CURRENT_DATE THEN TRUE ELSE FALSE END AS overdue,
+		       CAST(je.exposure_pennies AS BIGINT) AS exposure_pennies,
 		       je.action_label, je.action_view
 		FROM audit.journal_entry je
 		WHERE je.state <> 'closed' AND je.action_label IS NOT NULL
-		ORDER BY je.exposure_pennies DESC NULLS LAST`)
+		ORDER BY je.due_at ASC NULLS LAST, je.exposure_pennies DESC NULLS LAST`)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
 	renewals, err := s.queryRows(`
-		SELECT cs.customer_id, cs.name, cs.renewal_days,
+		SELECT cs.customer_id, cs.name, cs.renewal_days, cs.notice_days,
+		       (cs.renewal_days - COALESCE(cs.notice_days, 0)) AS decision_days,
 		       CAST(cs.acv_pennies AS BIGINT) AS acv_pennies,
-		       rm.opportunity_open, rm.note
+		       cs.opportunity_open, rm.note
 		FROM semantic.v_customer_signal cs
 		LEFT JOIN core.renewal_motion rm ON rm.engagement_id = cs.engagement_id
 		WHERE cs.renewal_days IS NOT NULL AND cs.renewal_days <= 180
-		ORDER BY cs.renewal_days`)
+		ORDER BY decision_days`)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -111,11 +141,14 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 
 	header, err := s.queryRows(`
 		SELECT cs.customer_id, cs.engagement_id, cs.name, cs.mark, cs.sector, cs.health_band,
-		       cs.outcomes_on_track, cs.outcomes_total, cs.clause_breaches, cs.clauses_at_risk,
-		       cs.utilisation_pct, cs.margin_pct, cs.vehicle_label,
-		       CAST(cs.acv_pennies AS BIGINT) AS acv_pennies, cs.renewal_date, cs.renewal_days,
-		       cu.csm_name, e.delivery_lead, ci.ref AS instrument_ref,
-		       CAST(ci.tcv_pennies AS BIGINT) AS tcv_pennies,
+		       cs.outcomes_on_track, cs.outcomes_at_risk, cs.outcomes_total,
+		       cs.clause_breaches, cs.clauses_at_risk, cs.clauses_cannot_eval,
+		       cs.utilisation_pct, cs.margin_pct, cs.util_weeks_over_100, cs.missing_signals,
+		       cs.vehicle_label, CAST(cs.acv_pennies AS BIGINT) AS acv_pennies,
+		       cs.renewal_date, cs.renewal_days, cs.notice_days,
+		       cu.csm_name, e.delivery_lead, ct.instrument_count,
+		       CAST(ct.tcv_pennies AS BIGINT) AS tcv_pennies, ct.vehicle_label AS instrument_ref,
+		       CAST(x.remedy_pennies AS BIGINT) AS remedy_pennies, x.has_uncapped,
 		       (SELECT CAST(SUM(CASE WHEN verdict = 'met' THEN 1 ELSE 0 END) AS BIGINT)
 		          FROM semantic.v_clause_latest
 		          WHERE engagement_id = cs.engagement_id AND category = 'milestone_gate') AS gates_passed,
@@ -128,11 +161,15 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 		       (SELECT CAST(SUM(assigned_fte) AS DOUBLE) FROM core.assignment
 		          WHERE engagement_id = cs.engagement_id) AS assigned_fte,
 		       (SELECT CAST(SUM(planned_fte) AS DOUBLE) FROM core.assignment
-		          WHERE engagement_id = cs.engagement_id) AS planned_fte
+		          WHERE engagement_id = cs.engagement_id) AS planned_fte,
+		       cv.csat_latest, cv.csat_prev, cv.csat_delta, cv.days_since_client_activity,
+		       cv.waiting_client_days, cv.sponsor_status, cv.sponsor_sentiment
 		FROM semantic.v_customer_signal cs
 		JOIN core.customer cu ON cu.id = cs.customer_id
 		JOIN core.engagement e ON e.id = cs.engagement_id
-		LEFT JOIN core.contract_instrument ci ON ci.engagement_id = cs.engagement_id
+		LEFT JOIN semantic.v_engagement_contract ct ON ct.engagement_id = cs.engagement_id
+		LEFT JOIN semantic.v_exposure x ON x.customer_id = cs.customer_id
+		LEFT JOIN semantic.v_client_voice cv ON cv.customer_id = cs.customer_id
 		WHERE cs.customer_id = ?`, id)
 	if err != nil {
 		s.fail(w, err)
@@ -144,10 +181,15 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 	}
 	eng := header[0]["engagement_id"]
 
+	// Outcomes carry their coverage (committed FTE + unaligned flag) so a zero-
+	// capacity at-risk outcome shows as an alarm, not a blank.
 	outcomes, err := s.queryRows(`
-		SELECT name, target_display, actual_display, status, attainment_pct,
-		       measure_source, source_ref
-		FROM semantic.v_outcome_status WHERE engagement_id = ? ORDER BY name`, eng)
+		SELECT os.name, os.target_display, os.actual_display, os.status, os.is_critical,
+		       os.attainment_pct, os.measure_source, os.source_ref, os.window_start, os.window_end,
+		       COALESCE(cov.committed_fte, 0) AS committed_fte, COALESCE(cov.unaligned, FALSE) AS unaligned
+		FROM semantic.v_outcome_status os
+		LEFT JOIN semantic.v_outcome_coverage cov ON cov.outcome_id = os.outcome_id
+		WHERE os.engagement_id = ? ORDER BY os.name`, eng)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -155,13 +197,15 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 
 	clauses, err := s.queryRows(`
 		SELECT clause_ref, clause_name, test_description, verdict, evidence_note,
-		       money_note, evaluated_at, category, remedy_type
+		       money_note, evaluated_at, method, category, remedy_type
 		FROM semantic.v_clause_latest WHERE engagement_id = ? ORDER BY clause_ref`, eng)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
+	// Capacity rows show what delivery outcome each drives AND whether that work
+	// defends a clause (so clause-defending work reads as aligned, not orphaned).
 	team, err := s.queryRows(`
 		SELECT a.role, a.planned_fte, a.assigned_fte, a.utilisation_pct, a.flag,
 		       d.name AS delivery_outcome, d.status AS delivery_status
@@ -175,11 +219,12 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 
 	deliveryOutcomes, err := s.queryRows(`
 		SELECT d.name, d.description, d.status, d.target_date,
-		       o.name AS supports_contracted,
+		       o.name AS supports_contracted, c.ref AS defends_clause,
 		       (SELECT CAST(SUM(a.assigned_fte) AS DOUBLE) FROM core.assignment a
 		          WHERE a.delivery_outcome_id = d.id) AS committed_fte
 		FROM core.delivery_outcome d
 		LEFT JOIN core.outcome o ON o.id = d.contracted_outcome_id
+		LEFT JOIN core.clause c ON c.id = d.clause_id
 		WHERE d.engagement_id = ?
 		ORDER BY CASE d.status WHEN 'late' THEN 0 WHEN 'at_risk' THEN 1 WHEN 'on_track' THEN 2 ELSE 3 END`, eng)
 	if err != nil {
@@ -215,6 +260,15 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN core.clause c ON c.id = ev.clause_id
 		WHERE ev.engagement_id = ?
 		ORDER BY CASE ev.state WHEN 'missing' THEN 0 WHEN 'stale' THEN 1 ELSE 2 END`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	gates, err := s.queryRows(`
+		SELECT name, gate_date, CAST(amount_pennies AS BIGINT) AS amount_pennies, status,
+		       clause_ref, days_to_gate, evidence_state, evidence_ready
+		FROM semantic.v_gate_runway WHERE engagement_id = ? ORDER BY days_to_gate`, eng)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -261,39 +315,50 @@ func (s *server) customer360(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"header": header[0], "outcomes": outcomes, "clauses": clauses,
 		"team": team, "delivery_outcomes": deliveryOutcomes,
-		"velocity": velocity, "epics": epics, "evidence": evidence,
+		"velocity": velocity, "epics": epics, "evidence": evidence, "gates": gates,
 		"artifacts": artifacts, "products": products,
 	})
 }
 
-// GET /api/journal — append-only risk log, newest first.
+// GET /api/journal — append-only risk log with its movement history, newest first.
 func (s *server) journal(w http.ResponseWriter, r *http.Request) {
 	entries, err := s.queryRows(`
 		SELECT id, risk_ref, severity, tone, title, body, scope_label, cluster_id,
-		       movement_from, movement_to, state, owner, due_note, created_at, author
+		       movement_from, movement_to, state, owner, due_note, due_at, origin,
+		       created_at, author
 		FROM audit.journal_entry ORDER BY created_at DESC`)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	links, err := s.queryRows(`
-		SELECT journal_id, text, tone FROM audit.journal_entry_link`)
+	links, err := s.queryRows(`SELECT journal_id, text, tone FROM audit.journal_entry_link`)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	byEntry := map[any][]any{}
+	moves, err := s.queryRows(`
+		SELECT journal_id, seq, from_state, to_state, note, actor, moved_at
+		FROM audit.journal_movement ORDER BY journal_id, seq`)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	byLink := map[any][]any{}
 	for _, l := range links {
-		byEntry[l["journal_id"]] = append(byEntry[l["journal_id"]], l)
+		byLink[l["journal_id"]] = append(byLink[l["journal_id"]], l)
+	}
+	byMove := map[any][]any{}
+	for _, m := range moves {
+		byMove[m["journal_id"]] = append(byMove[m["journal_id"]], m)
 	}
 	for _, e := range entries {
-		e["links"] = orEmpty(byEntry[e["id"]])
+		e["links"] = orEmpty(byLink[e["id"]])
+		e["movements"] = orEmpty(byMove[e["id"]])
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
 }
 
-// GET /api/correlation — active vulnerability cluster: blast radius with
-// contractual re-scoring, the shared-service matrix, correlated symptoms.
+// GET /api/correlation — active vulnerability cluster.
 func (s *server) correlation(w http.ResponseWriter, r *http.Request) {
 	vuln, err := s.queryRows(`
 		SELECT v.id, v.ref, v.title, v.description, v.disclosed_at, v.fixed_in_version,
@@ -350,6 +415,7 @@ func (s *server) correlation(w http.ResponseWriter, r *http.Request) {
 		          FROM core.ticket t2 WHERE t2.fingerprint = t.fingerprint) AS customers_sharing
 		FROM core.ticket t
 		JOIN core.customer cu ON cu.id = t.customer_id
+		WHERE t.fingerprint IS NOT NULL
 		ORDER BY customers_sharing DESC, t.opened_at`)
 	if err != nil {
 		s.fail(w, err)
@@ -374,16 +440,13 @@ func (s *server) correlation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /api/customers/{id}/delivery — delivery-focused view of one client:
-// outcomes driven by capacity, all work grouped by status (no sprint lens),
-// platform gaps blocking the client, open risks, and the definitions that
-// explain how the numbers are computed.
+// GET /api/customers/{id}/delivery — delivery-focused view of one client.
 func (s *server) delivery(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	who, err := s.queryRows(`
 		SELECT cs.customer_id, cs.engagement_id, cs.name, cs.mark, cs.sector,
-		       cs.health_band, cs.velocity_delta_pct
+		       cs.health_band, cs.velocity_delta_pct, cs.outcomes_at_risk
 		FROM semantic.v_customer_signal cs WHERE cs.customer_id = ?`, id)
 	if err != nil {
 		s.fail(w, err)
@@ -408,13 +471,26 @@ func (s *server) delivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Coverage: contracted outcomes with their committed FTE and unaligned flag —
+	// an unmet outcome with zero capacity is the misalignment made visible.
+	coverage, err := s.queryRows(`
+		SELECT outcome_name, outcome_status, attainment_pct, committed_fte, unaligned
+		FROM semantic.v_outcome_coverage WHERE engagement_id = ?
+		ORDER BY unaligned DESC, CASE outcome_status WHEN 'at_risk' THEN 0 WHEN 'behind' THEN 1
+		                                             WHEN 'unknown' THEN 2 ELSE 3 END`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
 	deliveryOutcomes, err := s.queryRows(`
 		SELECT d.name, d.description, d.status, d.target_date,
-		       o.name AS supports_contracted,
+		       o.name AS supports_contracted, c.ref AS defends_clause,
 		       (SELECT CAST(SUM(a.assigned_fte) AS DOUBLE) FROM core.assignment a
 		          WHERE a.delivery_outcome_id = d.id) AS committed_fte
 		FROM core.delivery_outcome d
 		LEFT JOIN core.outcome o ON o.id = d.contracted_outcome_id
+		LEFT JOIN core.clause c ON c.id = d.clause_id
 		WHERE d.engagement_id = ?
 		ORDER BY CASE d.status WHEN 'late' THEN 0 WHEN 'at_risk' THEN 1 WHEN 'on_track' THEN 2 ELSE 3 END`, eng)
 	if err != nil {
@@ -422,15 +498,23 @@ func (s *server) delivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gates, err := s.queryRows(`
+		SELECT name, gate_date, CAST(amount_pennies AS BIGINT) AS amount_pennies, status,
+		       clause_ref, days_to_gate, evidence_state, evidence_ready
+		FROM semantic.v_gate_runway WHERE engagement_id = ? ORDER BY days_to_gate`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	// Gaps ranked by the worst thing each blocks, then reach (honours the definition).
 	gaps, err := s.queryRows(`
-		SELECT g.name, g.description, g.status, g.eta, g.owner,
-		       gc.blocking_note, gc.linked_ref,
-		       (SELECT CAST(COUNT(*) AS BIGINT) FROM core.platform_gap_customer x
-		          WHERE x.gap_id = g.id) AS reach
-		FROM core.platform_gap g
+		SELECT g.name, g.description, g.status, g.eta, g.owner, g.reach,
+		       g.worst_blocks_kind, gc.blocking_note, gc.linked_ref, gc.blocks_kind
+		FROM semantic.v_platform_gap_ranked g
 		JOIN core.platform_gap_customer gc ON gc.gap_id = g.id
 		WHERE gc.customer_id = ?
-		ORDER BY reach DESC`, id)
+		ORDER BY g.worst_kind_rank, g.reach DESC`, id)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -438,34 +522,38 @@ func (s *server) delivery(w http.ResponseWriter, r *http.Request) {
 
 	risks, err := s.queryRows(`
 		SELECT je.risk_ref, je.severity, je.tone, je.title, je.state, je.owner,
-		       je.due_note, CAST(je.exposure_pennies AS BIGINT) AS exposure_pennies, je.created_at
+		       je.due_note, je.due_at, je.origin,
+		       CAST(je.exposure_pennies AS BIGINT) AS exposure_pennies, je.created_at
 		FROM audit.journal_entry je
 		JOIN audit.journal_entry_customer jc ON jc.journal_id = je.id
 		WHERE jc.customer_id = ? AND je.state <> 'closed'
-		ORDER BY je.created_at DESC`, id)
+		ORDER BY je.due_at ASC NULLS LAST`, id)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
 	definitions, err := s.queryRows(`
-		SELECT key, title, definition, formula, inputs FROM core.definition ORDER BY key`)
+		SELECT key, title, definition, formula, inputs, thresholds
+		FROM core.definition ORDER BY key`)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"who": who[0], "workload": workload, "delivery_outcomes": deliveryOutcomes,
+		"who": who[0], "workload": workload, "coverage": coverage,
+		"delivery_outcomes": deliveryOutcomes, "gates": gates,
 		"gaps": gaps, "risks": risks, "definitions": definitions,
 	})
 }
 
-// GET /api/rag — RAG board: band movement vs last snapshot, discussion topics
-// from the journal, and incidents bubbling toward severity.
+// GET /api/rag — RAG board: band movement vs the last snapshot (with staleness),
+// discussion topics, and incidents bubbling toward severity.
 func (s *server) rag(w http.ResponseWriter, r *http.Request) {
 	movement, err := s.queryRows(`
-		SELECT customer_id, name, mark, sector, health_band, prev_band, snapshot_date,
+		SELECT customer_id, name, mark, sector, csm_name, health_band, prev_band,
+		       snapshot_date, CAST(snapshot_age_days AS BIGINT) AS snapshot_age_days,
 		       CAST(breaches_delta AS BIGINT) AS breaches_delta,
 		       CAST(at_risk_delta AS BIGINT) AS at_risk_delta,
 		       CAST(outcomes_delta AS BIGINT) AS outcomes_delta,
@@ -478,7 +566,7 @@ func (s *server) rag(w http.ResponseWriter, r *http.Request) {
 		       CAST(acv_pennies AS BIGINT) AS acv_pennies, renewal_days
 		FROM semantic.v_rag_movement
 		ORDER BY CASE health_band WHEN 'at_risk' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END,
-		         CASE WHEN health_band <> prev_band THEN 0 ELSE 1 END,
+		         CASE WHEN health_band <> COALESCE(prev_band, health_band) THEN 0 ELSE 1 END,
 		         acv_pennies DESC`)
 	if err != nil {
 		s.fail(w, err)
@@ -520,8 +608,88 @@ func (s *server) rag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Client-voice board: the leading indicators that catch a quiet churner.
+	voice, err := s.queryRows(`
+		SELECT cv.customer_id, cv.name, cs.mark, cv.csat_latest, cv.csat_prev, cv.csat_delta,
+		       cv.days_since_client_activity, cv.waiting_client_days, CAST(cv.open_tickets AS BIGINT) AS open_tickets,
+		       cv.sponsor_status, cv.sponsor_sentiment
+		FROM semantic.v_client_voice cv
+		JOIN semantic.v_customer_signal cs ON cs.customer_id = cv.customer_id
+		ORDER BY cv.csat_delta ASC NULLS LAST`)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"movement": movement, "bubbling": bubbling,
+		"movement": movement, "bubbling": bubbling, "voice": voice,
+	})
+}
+
+// GET /api/qbr/{id} — interim QBR brief assembled from the lake, every figure
+// with its source, plus the one cheapest lint: outcome measurement windows that
+// don't cover the reporting quarter (the exact defect the full linter will own).
+func (s *server) qbr(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	header, err := s.queryRows(`
+		SELECT cs.customer_id, cs.engagement_id, cs.name, cs.mark, cs.health_band,
+		       CAST(cs.acv_pennies AS BIGINT) AS acv_pennies, cs.renewal_date,
+		       cs.outcomes_on_track, cs.outcomes_total, cu.csm_name, e.delivery_lead,
+		       cv.csat_latest, cv.csat_delta
+		FROM semantic.v_customer_signal cs
+		JOIN core.customer cu ON cu.id = cs.customer_id
+		JOIN core.engagement e ON e.id = cs.engagement_id
+		LEFT JOIN semantic.v_client_voice cv ON cv.customer_id = cs.customer_id
+		WHERE cs.customer_id = ?`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if len(header) == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown customer"})
+		return
+	}
+	eng := header[0]["engagement_id"]
+
+	// Reporting period = the quarter to date. Claim lint flags any outcome whose
+	// measurement window is materially shorter than that period.
+	outcomes, err := s.queryRows(`
+		SELECT os.name, os.target_display, os.actual_display, os.status, os.measure_source,
+		       os.source_ref, os.window_start, os.window_end, os.window_days,
+		       DATE_DIFF('day', os.window_start, os.window_end) AS measured_days,
+		       CASE WHEN os.window_kind = 'rolling' AND os.window_days IS NOT NULL
+		             AND os.window_days < 60 THEN TRUE ELSE FALSE END AS window_flag
+		FROM semantic.v_outcome_status os
+		WHERE os.engagement_id = ? ORDER BY os.name`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	clauses, err := s.queryRows(`
+		SELECT clause_ref, clause_name, verdict, evidence_note, money_note, method
+		FROM semantic.v_clause_latest WHERE engagement_id = ?
+		ORDER BY CASE verdict WHEN 'breach' THEN 0 WHEN 'at_risk' THEN 1
+		                      WHEN 'cannot_evaluate' THEN 2 ELSE 3 END, clause_ref`, eng)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	risks, err := s.queryRows(`
+		SELECT je.risk_ref, je.severity, je.tone, je.title, je.state, je.owner, je.due_note
+		FROM audit.journal_entry je
+		JOIN audit.journal_entry_customer jc ON jc.journal_id = je.id
+		WHERE jc.customer_id = ? AND je.state <> 'closed'
+		ORDER BY je.created_at DESC`, id)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"header": header[0], "outcomes": outcomes, "clauses": clauses, "risks": risks,
 	})
 }
 
